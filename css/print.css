@@ -1,0 +1,103 @@
+/* ==========================================================
+   PRINT LAYOUT – aislado con body.use-new-print
+   - Colchón seguro para impresoras con ~4mm no imprimibles
+   ========================================================== */
+
+:root{
+  --safe-mm: 6mm; /* subí a 7–8mm si aún corta */
+}
+
+@media print {
+  body.use-new-print #print-root { display: block !important; }
+  body.use-new-print header,
+  body.use-new-print nav,
+  body.use-new-print footer,
+  body.use-new-print .wrap,
+  body.use-new-print .no-print,
+  body.use-new-print .print-area { display: none !important; }
+
+  @page { size: A4; margin: 0; }
+
+  html, body { width: 210mm; height: 297mm; }
+  body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+
+#print-root{
+  display: none;
+  box-sizing: border-box;
+  width: 210mm;
+  min-height: 297mm;
+  padding: var(--safe-mm);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial;
+  color: #111;
+}
+
+#print-stack{
+  width: 100%;
+  height: calc(297mm - (var(--safe-mm) * 2));
+  display: grid;
+  grid-template-rows: 120mm 8mm 50mm;
+  row-gap: 6mm;
+  align-content: start;
+}
+
+.print-cutline{
+  border-top: 1px dashed #999;
+  height: 0;
+  align-self: center;
+}
+
+#print-panel{
+  width: 140mm;
+  height: 120mm;
+  margin: 0 auto;
+  border: 1px solid #000;
+  padding: 6mm;
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  gap: 3mm;
+}
+
+.print-row{ display: grid; grid-template-columns: 35mm 1fr; gap: 3mm; align-items: center; }
+.print-label{ font-weight: 700; font-size: 11pt; }
+.print-value{ font-size: 11pt; }
+
+#panel-top{
+  display: grid; grid-template-columns: 1fr auto;
+  align-items: center; gap: 6mm;
+}
+#print-logo{ height: 16mm; }
+#print-barcode{ height: 16mm; }
+
+#panel-receta{ display: grid; grid-template-columns: 1fr 1fr; gap: 3mm; }
+.rec-box{ border:1px solid #000; padding:3mm; font-size:10pt; }
+.rec-box h4{ margin:0 0 2mm 0; font-size:10pt; }
+.rec-grid{ display:grid; grid-template-columns: 14mm 1fr; gap: 1mm 3mm; }
+.rec-label{ font-weight:700; }
+
+#panel-totales{ display:grid; grid-template-columns: 1fr auto; align-items:center; gap: 4mm; }
+.total-fig{ font-size:14pt; font-weight:800; }
+
+#panel-foto{
+  justify-self: end;
+  height: 20mm; width: 26mm;
+  object-fit: cover;
+  border: 1px solid #000;
+}
+
+#print-coupon{
+  width: 140mm;
+  height: 50mm;
+  margin: 0 auto;
+  border: 1px solid #000;
+  padding: 4mm 6mm;
+  display: grid; grid-template-rows: auto 1fr;
+  gap: 2mm;
+  font-size: 10.5pt;
+}
+#coupon-head{ display:grid; grid-template-columns:1fr auto; align-items:center; gap:4mm; }
+#coupon-barcode{ height: 14mm; }
+.coupon-row{ display:grid; grid-template-columns: 28mm 1fr; gap:3mm; }
+.coupon-label{ font-weight:700; }
+
+.avoid-break{ break-inside: avoid; page-break-inside: avoid; }
