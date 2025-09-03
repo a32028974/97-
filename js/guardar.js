@@ -9,7 +9,6 @@ const U = (v) => (v ?? "").toString().trim().toUpperCase();
 
 /* ===== Networking helpers ===== */
 async function postForm(url, bodyParams, { timeoutMs = 30000 } = {}) {
-  // bodyParams puede venir como URLSearchParams o como objeto plano
   const body = bodyParams instanceof URLSearchParams
     ? bodyParams
     : new URLSearchParams(bodyParams || {});
@@ -28,7 +27,6 @@ async function postForm(url, bodyParams, { timeoutMs = 30000 } = {}) {
     if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}: ${txt.slice(0,200)}`);
     return data ?? txt;
   } catch (e) {
-    // Clarificar CORS/Network
     const msg = (e?.name === "AbortError" || e?.message === "timeout")
       ? "Tiempo de espera agotado (no respondió el servidor)"
       : /Failed to fetch|TypeError|NetworkError/i.test(String(e?.message || e))
@@ -121,9 +119,21 @@ export async function guardarTrabajo({ progress } = {}) {
     setStep("Guardando en planilla", "run");
     const formEl = $("formulario");
     if (!formEl) throw new Error("Formulario no encontrado");
-    const body = new URLSearchParams(new FormData(formEl));
 
-    const postJson = await postForm(API_URL, body); // <-- ahora con CT explícito y timeout
+    // Armado del body + ALIAS para compatibilidad con GAS
+    const fd = new FormData(formEl);
+    const body = new URLSearchParams(fd);
+
+    // Aliases críticos para evitar cruces de columnas en la planilla:
+    body.set("numero", fd.get("numero_trabajo") || "");                 // por si el GAS usa 'numero'
+    body.set("armazon", fd.get("numero_armazon") || "");                // Nº armazón
+    body.set("detalle_armazon", fd.get("armazon_detalle") || "");       // Detalle armazón
+    // extras por si existen otras variantes en el GAS
+    body.set("n_armazon", fd.get("numero_armazon") || "");
+    body.set("num_armazon", fd.get("numero_armazon") || "");
+    body.set("armazon_detalle", fd.get("armazon_detalle") || "");
+
+    const postJson = await postForm(API_URL, body);
     setStep("Guardando en planilla", "done");
 
     // Número final (si el backend devolvió uno con sufijo)
