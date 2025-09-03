@@ -2,18 +2,51 @@
 import { API_URL, PACK_URL, withParams, apiGet } from "./api.js";
 import { renderAndPrint } from "./print.js";
 
-/* ===== Helpers ===== */
+/* ===== Helpers DOM/valores ===== */
 const $ = (id) => document.getElementById(id);
 const V = (id) => (document.getElementById(id)?.value ?? "").toString().trim();
 const U = (v) => (v ?? "").toString().trim().toUpperCase();
 
+/* ===== Networking helpers ===== */
+async function postForm(url, bodyParams, { timeoutMs = 30000 } = {}) {
+  // bodyParams puede venir como URLSearchParams o como objeto plano
+  const body = bodyParams instanceof URLSearchParams
+    ? bodyParams
+    : new URLSearchParams(bodyParams || {});
+  const ctrl = new AbortController();
+  const to = setTimeout(() => ctrl.abort("timeout"), timeoutMs);
+
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+      body,
+      signal: ctrl.signal
+    });
+    const txt = await res.text();
+    let data = null; try { data = JSON.parse(txt); } catch {}
+    if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}: ${txt.slice(0,200)}`);
+    return data ?? txt;
+  } catch (e) {
+    // Clarificar CORS/Network
+    const msg = (e?.name === "AbortError" || e?.message === "timeout")
+      ? "Tiempo de espera agotado (no respondió el servidor)"
+      : /Failed to fetch|TypeError|NetworkError/i.test(String(e?.message || e))
+        ? "No se pudo conectar al servidor (revisá la URL / permisos del Web App de Apps Script)"
+        : e?.message || "Error de red";
+    throw new Error(msg);
+  } finally {
+    clearTimeout(to);
+  }
+}
+
+/* ===== Otros helpers ===== */
 function setNumeroTrabajo(n) {
   const vis = $("numero_trabajo");
   if (vis) vis.value = (n ?? "").toString().trim();
   const hid = $("numero_trabajo_hidden");
   if (hid) hid.value = (n ?? "").toString().trim();
 }
-
 function syncNumeroTrabajoHidden() {
   const vis = $("numero_trabajo");
   const hid = $("numero_trabajo_hidden");
@@ -84,26 +117,13 @@ export async function guardarTrabajo({ progress } = {}) {
     if (!V("nombre")) throw new Error("Ingresá el nombre");
     setStep("Validando datos", "done");
 
-    // 1) Guardar en planilla
+    // 1) Guardar en planilla (POST)
     setStep("Guardando en planilla", "run");
     const formEl = $("formulario");
     if (!formEl) throw new Error("Formulario no encontrado");
     const body = new URLSearchParams(new FormData(formEl));
 
-    let postJson;
-    try {
-      const res = await fetch(API_URL, { method: "POST", body });
-      const txt = await res.text();
-      try { postJson = JSON.parse(txt); } catch { postJson = null; }
-      if (!res.ok) throw new Error(`HTTP ${res.status}: ${txt.slice(0, 200)}`);
-      if (!postJson || postJson.ok !== true) {
-        const msg = (postJson && postJson.error) ? postJson.error : "Respuesta inválida del servidor";
-        throw new Error(msg);
-      }
-    } catch (e) {
-      console.error("Error al guardar en planilla:", e);
-      throw e;
-    }
+    const postJson = await postForm(API_URL, body); // <-- ahora con CT explícito y timeout
     setStep("Guardando en planilla", "done");
 
     // Número final (si el backend devolvió uno con sufijo)
@@ -122,19 +142,15 @@ export async function guardarTrabajo({ progress } = {}) {
       imagenesBase64: fotosBase64()
     };
 
-    const packRes = await fetch(PACK_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
-      body: new URLSearchParams({ genPack: "1", payload: JSON.stringify(payload) })
-    });
-    const raw = await packRes.text();
-    if (!packRes.ok) throw new Error(`Error PACK (${packRes.status})`);
-    let j; try { j = JSON.parse(raw); } catch { j = null; }
+    const j = await postForm(PACK_URL, new URLSearchParams({
+      genPack: "1",
+      payload: JSON.stringify(payload)
+    }));
     if (!j?.ok) throw new Error("No se pudo crear/enviar el PDF");
     const packUrl = j.url || j.pdf || "";
     setStep("Generando PDF", "done");
 
-    // Guardar link del PDF
+    // Guardar link del PDF (GET con query)
     const hidden = $("pack_url");
     if (hidden) hidden.value = packUrl;
     if (packUrl) {
