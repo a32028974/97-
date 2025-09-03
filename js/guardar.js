@@ -148,7 +148,7 @@ export async function guardarTrabajo({ progress } = {}) {
       setStep("Guardando link del PDF", "done");
     }
 
-    // 3) Confirmar + imprimir
+    // 3) Confirmar + imprimir (opcional)
     try { progress?.doneAndHide?.(0); } catch {}
     if (spinner) spinner.style.display = "none";
 
@@ -199,40 +199,4 @@ export async function guardarTrabajo({ progress } = {}) {
   } finally {
     if ($("spinner")) $("spinner").style.display = "none";
   }
-}
-
-/* ===== Botón “Imprimir” manual (sin guardar) ===== */
-function bindManualPrintButton() {
-  const btn = $("btn-imprimir");
-  if (!btn) return;
-  btn.addEventListener("click", async () => {
-    const numero = V("numero_trabajo") || "(SIN N°)";
-    await renderAndPrint({
-      numero,
-      fecha: V("fecha"),
-      fechaRetira: V("fecha_retira"),
-      nombre: V("nombre"),
-      dni: V("dni"),
-      telefono: V("telefono"),
-      dr: V("dr"),
-      cristal: V("cristal"),
-      precioCristal: V("precio_cristal"),
-      armazonNumero: V("numero_armazon"),
-      armazonDetalle: V("armazon_detalle"),
-      precioArmazon: V("precio_armazon"),
-      entregaLabel: entregaLabel(),
-      od_esf: V("od_esf"), od_cil: V("od_cil"), od_eje: V("od_eje"),
-      oi_esf: V("oi_esf"), oi_cil: V("oi_cil"), oi_eje: V("oi_eje"),
-      dnp: V("dnp"), add: V("add"),
-      total: V("total"), sena: V("sena"), saldo: V("saldo"),
-      fotoDataUrl: (Array.isArray(window.__FOTOS) && window.__FOTOS[0]) ? window.__FOTOS[0] : ""
-    });
-  });
-}
-
-// Auto-bind
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", bindManualPrintButton);
-} else {
-  bindManualPrintButton();
 }
