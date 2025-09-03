@@ -1,4 +1,4 @@
-// /RECETAS/js/main.js — v2025-08-28.5
+// /RECETAS/js/main.js — v2025-09-03
 // UI general + progreso + cámara + búsquedas + totales + graduaciones + historial
 
 // ===== Imports =====
@@ -320,9 +320,6 @@ function resetGraduaciones() {
 // =========================================================================
 // Dinero / Totales
 // =========================================================================
-// =========================================================================
-// Dinero / Totales
-// =========================================================================
 function setupCalculos(){
   const pc  = $('precio_cristal');
   const pa  = $('precio_armazon');
@@ -355,7 +352,6 @@ function setupCalculos(){
 
   updateTotals();
 }
-
 
 // =========================================================================
 /** Historial */
@@ -422,14 +418,13 @@ function initHistorialUI() {
 // =========================================================================
 // Impresión / Limpieza
 // =========================================================================
-// === Reemplazo de buildPrintArea en main.js ===
 let __PRINT_LOCK = false;
 function buildPrintArea(){
   if (__PRINT_LOCK) return;
   __PRINT_LOCK = true;
   try {
     if (typeof window.__buildPrintArea === 'function') {
-      window.__buildPrintArea();   // esto ya dispara window.print() desde renderAndPrint()
+      window.__buildPrintArea();   // esto ya llama a renderAndPrint() (único window.print)
     } else {
       console.warn('No existe window.__buildPrintArea');
     }
@@ -438,6 +433,19 @@ function buildPrintArea(){
   }
 }
 
+function limpiarFormulario(){
+  const form=$('formulario'); if(!form) return;
+
+  form.reset();
+  resetGraduaciones();
+  cargarFechaHoy();
+  recalcularFechaRetiro();
+
+  const gal=$('galeria-fotos'); if(gal) gal.innerHTML='';
+  if (Array.isArray(window.__FOTOS)) window.__FOTOS.length = 0;
+
+  if (typeof window.__updateTotals === 'function') window.__updateTotals();
+}
 
 // =========================================================================
 // SOLO SE GUARDA CON CLICK: bloquear submit con Enter
@@ -552,6 +560,7 @@ document.addEventListener('DOMContentLoaded', () => {
       try{
         await guardarTrabajo({ progress });
         progress.doneAndHide(800);
+        // Nota: limpiarFormulario() lo hace guardar.js cuando corresponda (si querés).
       } catch (err){
         console.error(err);
         progress.fail(err?.message || 'Error al guardar');
