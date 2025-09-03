@@ -30,7 +30,7 @@
         <div class="brand">
           <img src="logo.png" alt="Óptica Cristal" />
           <div>
-            <h1>Óptica Cristal v97</h1>
+            <h1>Óptica Cristal v98</h1>
             <p class="muted small">San Miguel • Argentina</p>
           </div>
         </div>
@@ -46,6 +46,8 @@
 
     <!-- Formulario principal -->
     <form id="formulario" class="grid two" autocomplete="off">
+      <!-- 👇 agregado: hidden que usa guardar.js -->
+      <input type="hidden" id="numero_trabajo_hidden" name="numero_trabajo_hidden" />
       <input type="hidden" id="pack_url" name="pdf" />
 
       <!-- Columna izquierda -->
@@ -313,8 +315,8 @@
             <h4>Graduación OI</h4>
             <div class="rec-grid">
               <div class="rec-label">ESF</div><div id="pv-oi-esf"></div>
-              <div class="rec-label">CIL</div><div id="pv-oi-cil"></div>
-              <div class="rec-label">EJE</div><div id="pv-oi-eje"></div>
+              <div class="rec-label">CIL</div><div id="pv-oi_cil"></div>
+              <div class="rec-label">EJE</div><div id="pv-oi_eje"></div>
             </div>
           </div>
           <div class="rec-box">
