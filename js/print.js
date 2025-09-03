@@ -148,3 +148,54 @@ export async function renderAndPrint({
     setTimeout(() => document.body.classList.remove("use-new-print"), 0);
   }
 }
+// === Agregar AL FINAL de js/print.js ===
+(function exposeBuildFromForm(){
+  if (window.__buildPrintArea) return; // por si ya existe en otra parte
+
+  const gv = (id) => (document.getElementById(id)?.value ?? '').toString().trim();
+  const moneyNum = (id) => {
+    const v = gv(id).replace(/\./g,'').replace(',', '.').replace(/[^0-9.\-]/g,'');
+    const n = parseFloat(v);
+    return isNaN(n) ? '' : n;
+  };
+
+  window.__buildPrintArea = function(){
+    const payload = {
+      numero:       gv('numero_trabajo'),
+      fecha:        gv('fecha'),
+      fechaRetira:  gv('fecha_retira'),
+      nombre:       gv('nombre'),
+      dni:          gv('dni'),
+      telefono:     gv('telefono'),
+      dr:           gv('dr'),
+      cristal:      gv('cristal'),
+      precioCristal: moneyNum('precio_cristal'),
+      armazonNumero: gv('numero_armazon'),
+      armazonDetalle:gv('armazon_detalle'),
+      precioArmazon: moneyNum('precio_armazon'),
+      entregaLabel:  (() => {
+        const sel = document.getElementById('entrega-select');
+        if (!sel) return '';
+        return sel.options[sel.selectedIndex]?.text || sel.value || '';
+      })(),
+      od_esf: gv('od_esf'),
+      od_cil: gv('od_cil'),
+      od_eje: gv('od_eje'),
+      oi_esf: gv('oi_esf'),
+      oi_cil: gv('oi_cil'),
+      oi_eje: gv('oi_eje'),
+      dnp:    gv('dnp'),
+      add:    gv('add'),
+      total:  moneyNum('total'),
+      sena:   moneyNum('sena'),
+      saldo:  moneyNum('saldo'),
+      // Foto: si tenés fotos en memoria, uso la última; sino queda oculto
+      fotoDataUrl: (Array.isArray(window.__FOTOS) && window.__FOTOS.length > 0)
+                    ? window.__FOTOS[window.__FOTOS.length - 1]
+                    : undefined
+    };
+
+    // Usa tu función existente; esta ya hace window.print() y maneja use-new-print
+    renderAndPrint(payload);
+  };
+})();
