@@ -421,20 +421,22 @@ function initHistorialUI() {
 // =========================================================================
 // Impresión / Limpieza
 // =========================================================================
-function buildPrintArea(){ try{ (window.__buildPrintArea||(()=>{}))(); }catch{} setTimeout(()=>window.print(),0); }
-function limpiarFormulario(){
-  const form=$('formulario'); if(!form) return;
-
-  form.reset();
-  resetGraduaciones();
-  cargarFechaHoy();
-  recalcularFechaRetiro();
-
-  const gal=$('galeria-fotos'); if(gal) gal.innerHTML='';
-  if (Array.isArray(window.__FOTOS)) window.__FOTOS.length = 0;
-
-  if (typeof window.__updateTotals === 'function') window.__updateTotals();
+// === Reemplazo de buildPrintArea en main.js ===
+let __PRINT_LOCK = false;
+function buildPrintArea(){
+  if (__PRINT_LOCK) return;
+  __PRINT_LOCK = true;
+  try {
+    if (typeof window.__buildPrintArea === 'function') {
+      window.__buildPrintArea();   // esto ya dispara window.print() desde renderAndPrint()
+    } else {
+      console.warn('No existe window.__buildPrintArea');
+    }
+  } finally {
+    setTimeout(() => { __PRINT_LOCK = false; }, 1200);
+  }
 }
+
 
 // =========================================================================
 // SOLO SE GUARDA CON CLICK: bloquear submit con Enter
