@@ -254,16 +254,16 @@
         </section>
       </aside>
 
-      <!-- Historial -->
-      <section class="card" id="hist-card" style="grid-column:1 / -1; margin-top:12px;">
-        <h3 style="margin:0 0 8px 0; font-size:16px;">Historial</h3>
-        <div class="row cols-3">
-          <input id="hist-q" placeholder="Buscar: nombre, DNI, tel o @123 (exacto)" />
-          <input id="hist-limit" type="number" min="1" max="500" value="100" />
-          <button id="hist-buscar" type="button">Buscar</button>
-        </div>
-        <div id="historial" class="small muted" style="margin-top:8px;"></div>
-      </section>
+       <!-- Historial -->
+<section id="historial">
+  <div class="hist-top">
+    <input id="hist-buscar" type="search"
+      placeholder="Buscar: apellido, nombre, DNI, teléfono o @N°Trabajo" />
+  </div>
+  <div id="hist-lista"></div>
+</section>
+
+
     </form>
   </div>
 
