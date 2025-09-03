@@ -120,18 +120,30 @@ export async function guardarTrabajo({ progress } = {}) {
     const formEl = $("formulario");
     if (!formEl) throw new Error("Formulario no encontrado");
 
-    // Armado del body + ALIAS para compatibilidad con GAS
+    // Armado del body + ALIAS (corregido: armazon = DETALLE, numero_* = NÚMERO)
     const fd = new FormData(formEl);
     const body = new URLSearchParams(fd);
 
-    // Aliases críticos para evitar cruces de columnas en la planilla:
-    body.set("numero", fd.get("numero_trabajo") || "");                 // por si el GAS usa 'numero'
-    body.set("armazon", fd.get("numero_armazon") || "");                // Nº armazón
-    body.set("detalle_armazon", fd.get("armazon_detalle") || "");       // Detalle armazón
-    // extras por si existen otras variantes en el GAS
-    body.set("n_armazon", fd.get("numero_armazon") || "");
-    body.set("num_armazon", fd.get("numero_armazon") || "");
-    body.set("armazon_detalle", fd.get("armazon_detalle") || "");
+    const numAr = (fd.get("numero_armazon") || "").toString().trim();
+    const detAr = (fd.get("armazon_detalle") || "").toString().trim();
+
+    // Enviar número con múltiples alias (por compat)
+    body.set("numero_armazon", numAr);
+    body.set("n_armazon", numAr);
+    body.set("num_armazon", numAr);
+    body.set("nro_armazon", numAr);
+    body.set("armazon_numero", numAr);
+    // si tu GAS mapea por encabezados en mayúsculas
+    body.set("NUMERO ARMAZON", numAr);
+
+    // Enviar detalle donde algunos GAS esperan 'armazon'
+    body.set("armazon", detAr);                // <- AHORA 'armazon' es el DETALLE (marca/modelo/color)
+    body.set("armazon_detalle", detAr);
+    body.set("detalle_armazon", detAr);
+    body.set("ARMAZON", detAr);
+
+    // Por si el GAS usa otra clave para número de trabajo
+    body.set("numero", fd.get("numero_trabajo") || "");
 
     const postJson = await postForm(API_URL, body);
     setStep("Guardando en planilla", "done");
