@@ -1,5 +1,5 @@
 // worker.js
-const TARGET = 'https://script.google.com/macros/s/AKfycb.../exec'; // tu URL GAS
+const TARGET = 'https://script.google.com/macros/s/AKfycbwnxCb9szK4tRJlGNxT2pW9bOAgJLy7yIChiL9MhLV94Ef7p1CsbCTB8CXlAnlSw4MGMw/exec';
 
 function corsHeaders() {
   return {
