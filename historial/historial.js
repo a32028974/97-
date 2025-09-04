@@ -1,4 +1,4 @@
-// /historial/historial.js — v1
+ // /historial/historial.js — v1
 // Página independiente de historial (carpeta /historial)
 // Usa API_URL del proyecto y llama al Apps Script con ?fn=historial
 
@@ -137,59 +137,75 @@ async function buscar(){
   setSpin(true);
   setStatus('');
   try{
-    // Intento 1: handler nuevo ?fn=historial
-    const urls = [
-      `${API_URL}?fn=historial&q=${encodeURIComponent(q)}&limit=500`,
-      `${API_URL}?buscar=1&q=${encodeURIComponent(q)}&limit=500`,            // fallback a handler viejo
-    ];
+    const base = API_URL.replace(/\?$/, '');
 
+    // Variantes de endpoints y de nombre de parámetro
+    const handlers = ['fn=historial', 'buscar=1', 'historial=1'];
+    const params   = ['q', 'query', 's'];
+    const limits   = [500, 200, 100];
+
+    let usedUrl = '';
     let json = null;
-    let used = '';
+    let arr = null;
+    let rawLast = '';
 
-    // probamos en orden hasta que uno devuelva lista
-    for (const u of urls){
-      // fetch con timeout defensivo
-      const controller = new AbortController();
-      const t = setTimeout(()=>controller.abort(), 15000);
-      const res = await fetch(u, { method:'GET', signal: controller.signal }).catch(e => ({ ok:false, _err:e }));
-      clearTimeout(t);
+    for (const h of handlers){
+      for (const p of params){
+        for (const L of limits){
+          const url = `${base}?${h}&${p}=${encodeURIComponent(q)}&limit=${L}`;
 
-      if (!res || !res.ok){
-        continue; // probamos el próximo
+          // timeout defensivo
+          const controller = new AbortController();
+          const t = setTimeout(()=>controller.abort(), 15000);
+
+          let res, raw;
+          try{
+            res = await fetch(url, { signal: controller.signal });
+            raw = await res.text();
+          }catch(e){
+            clearTimeout(t);
+            continue; // intentá la próxima variante
+          }
+          clearTimeout(t);
+
+          rawLast = raw;
+
+          if (!res.ok) continue;
+
+          try{
+            json = raw ? JSON.parse(raw) : null;
+          }catch(e){
+            continue; // no es JSON válido; probá siguiente
+          }
+
+          // aceptamos varios formatos
+          arr = Array.isArray(json?.items) ? json.items
+              : Array.isArray(json?.rows)  ? json.rows
+              : Array.isArray(json?.data)  ? json.data
+              : Array.isArray(json?.result)? json.result
+              : null;
+
+          if (arr && arr.length >= 0){
+            usedUrl = url;
+            break;
+          }
+        }
+        if (arr) break;
       }
-
-      const raw = await res.text();
-      try {
-        json = raw ? JSON.parse(raw) : null;
-      } catch(parseErr){
-        console.warn('Respuesta no JSON para', u, raw);
-        json = null;
-      }
-
-      // Aceptamos varios formatos: {items}, {rows}, {ok:true,data}, {result}
-      const arr = Array.isArray(json?.items) ? json.items
-               : Array.isArray(json?.rows)  ? json.rows
-               : Array.isArray(json?.data)  ? json.data
-               : Array.isArray(json?.result)? json.result
-               : null;
-
-      if (arr && arr.length >= 0){
-        used = u.includes('fn=historial') ? 'fn=historial' : 'buscar=1';
-        // normalizamos y salimos del loop
-        ALL_ROWS = normalizeRows(arr);
-        break;
-      }
+      if (arr) break;
     }
 
-    if (!json){
-      setStatus(`<span style="color:#d33">No hubo respuesta válida del servidor</span>`);
+    if (!arr){
+      setStatus(`<span style="color:#d33">Sin resultados o respuesta inválida</span><br><small>Última URL probada: <code>${API_URL}</code><br/>Raw (primeros 300): <code>${(rawLast||'').slice(0,300).replace(/[<>&]/g,s=>({ '<':'&lt;','>':'&gt;','&':'&amp;' }[s]))}</code></small>`);
       ALL_ROWS = [];
       applyFilters();
       return;
     }
 
-    const updated = json?.updatedAt ? ` · Actualizado: ${json.updatedAt}` : '';
-    setStatus(`<b>${ALL_ROWS.length}</b> resultado${ALL_ROWS.length!==1?'s':''} · vía <code>${used}</code>${updated}`);
+    // Normalizamos filas
+    ALL_ROWS = normalizeRows(arr);
+
+    setStatus(`<b>${ALL_ROWS.length}</b> resultado${ALL_ROWS.length!==1?'s':''} · <small>via <code>${usedUrl.split('?')[1]}</code></small>${json?.updatedAt ? ' · Actualizado: '+json.updatedAt : ''}`);
 
     applyFilters();
 
