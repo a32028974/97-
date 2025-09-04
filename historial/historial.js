@@ -60,55 +60,65 @@ function renderPage(){
   const slice = FILTERED.slice(start, start + PAGE_SIZE);
 
   const frag = document.createDocumentFragment();
-  slice.forEach(r=>{
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${r.estado}</td>
-      <td>${r.fecha}</td>
-      <td>${r.retira}</td>
-      <td style="font-variant-numeric:tabular-nums">${r.numero}</td>
-      <td>${r.dni}</td>
-      <td>${r.nombre}</td>
-      <td>${r.cristal}</td>
-      <td>${r.n_armazon}</td>
-      <td>${r.det_armazon}</td>
-      <td>${r.dist_focal}</td>
-      <td>${r.vendedor}</td>
-      <td>${r.telefono}</td>
-      <td class="row" style="gap:6px; white-space:nowrap">
-        <button class="btn-secondary" ${r.pdf?'':'disabled'} data-act="open"  data-pdf="${r.pdf||''}">Abrir</button>
-        <button class="btn-secondary" ${r.pdf?'':'disabled'} data-act="print" data-pdf="${r.pdf||''}">Imprimir</button>
-        <button class="btn-secondary" ${r.pdf?'':'disabled'} data-act="copy"  data-pdf="${r.pdf||''}">Copiar link</button>
-      </td>
-    `;
-    frag.appendChild(tr);
-  });
-  tbody.appendChild(frag);
+slice.forEach((r, i)=>{
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td>${r.estado}</td>
+    <td>${r.fecha}</td>
+    <td>${r.retira}</td>
+    <td style="font-variant-numeric:tabular-nums">${r.numero}</td>
+    <td>${r.dni}</td>
+    <td>${r.nombre}</td>
+    <td>${r.cristal}</td>
+    <td>${r.n_armazon}</td>
+    <td>${r.det_armazon}</td>
+    <td>${r.dist_focal}</td>
+    <td>${r.vendedor}</td>
+    <td>${r.telefono}</td>
+    <td class="row" style="gap:6px; white-space:nowrap">
+      <button class="btn" data-act="fill" data-abs-idx="${start + i}">Cargar</button>
+      <button class="btn-secondary" ${r.pdf?'':'disabled'} data-act="open"  data-pdf="${r.pdf||''}">Abrir</button>
+      <button class="btn-secondary" ${r.pdf?'':'disabled'} data-act="print" data-pdf="${r.pdf||''}">Imprimir</button>
+      <button class="btn-secondary" ${r.pdf?'':'disabled'} data-act="copy"  data-pdf="${r.pdf||''}">Copiar link</button>
+    </td>
+  `;
+  frag.appendChild(tr);
+});
+tbody.appendChild(frag);
 
   // Paginación
   $('#pager').hidden = (totalPages <= 1);
   $('#pageInfo').textContent = `Página ${page} de ${totalPages} — ${FILTERED.length} resultado${FILTERED.length!==1?'s':''}`;
 
-  // Acciones
-  tbody.querySelectorAll('button[data-act]').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const pdf = btn.getAttribute('data-pdf');
-      const act = btn.getAttribute('data-act');
-      if (!pdf) return;
-      if (act==='open'){
-        window.open(pdf, '_blank', 'noopener');
-      } else if (act==='print'){
-        const w = window.open(pdf, '_blank', 'noopener'); if (!w) return;
-        const tryPrint = () => { try { w.focus(); w.print(); } catch(_){} };
-        w.onload = tryPrint; setTimeout(tryPrint, 1200);
-      } else if (act==='copy'){
-        navigator.clipboard.writeText(pdf).then(()=>{
-          if (window.Swal) Swal.fire({toast:true, position:'top', timer:1200, showConfirmButton:false, icon:'success', title:'Link copiado'});
-        });
-      }
-    });
+  // acciones por fila (incluye el nuevo "fill")
+tbody.querySelectorAll('button[data-act]').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    const act = btn.getAttribute('data-act');
+    if (act === 'fill') {
+      const idx = Number(btn.getAttribute('data-abs-idx'));
+      const row = FILTERED[idx];
+      try {
+        sessionStorage.setItem('prefill_trabajo', JSON.stringify(row));
+      } catch {}
+      // navegá al formulario (ajustá la ruta si tu index está en otro lugar)
+      window.location.href = '../index.html#prefill';
+      return;
+    }
+    const pdf = btn.getAttribute('data-pdf');
+    if (!pdf) return;
+    if (act==='open'){
+      window.open(pdf, '_blank', 'noopener');
+    } else if (act==='print'){
+      const w = window.open(pdf, '_blank', 'noopener'); if (!w) return;
+      const tryPrint = () => { try { w.focus(); w.print(); } catch(_){} };
+      w.onload = tryPrint; setTimeout(tryPrint, 1200);
+    } else if (act==='copy'){
+      navigator.clipboard.writeText(pdf).then(()=>{
+        if (window.Swal) Swal.fire({toast:true, position:'top', timer:1200, showConfirmButton:false, icon:'success', title:'Link copiado'});
+      });
+    }
   });
-}
+});
 
 
 // ---------- filtros (sin “Solo PDF”) ----------
