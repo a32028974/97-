@@ -41,4 +41,8 @@ th, td{ border-bottom:1px solid var(--line); padding:8px 10px; white-space:nowra
 
 .pager{ display:flex; gap:10px; justify-content:center; align-items:center; padding-top:8px }
 
+/* antes: url(img/logo_muy_chico_sinfondo.png) o url(./img/...) */
+background-image: url("/logo_muy_chico_sinfondo.png");  /* imagen en la raíz */
+
+
 .footer{ text-align:center; padding:10px; color:var(--muted) }
