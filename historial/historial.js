@@ -110,7 +110,51 @@ function applyFilters(){
   renderPage();
 }
 
-// ===== buscar =====
+// ——— helper robusto para parsear JSON aunque venga envuelto en HTML/XSSI ———
+function parsePossiblyWrappedJSON(raw) {
+  if (!raw) return null;
+  let txt = String(raw).trim();
+
+  // 1) quita prefijo XSSI típico de Google: )]}'
+  if (txt.startsWith(")]}'")) {
+    txt = txt.replace(/^\)\]\}'\s*/, '');
+  }
+
+  // 2) si viene HTML (empieza con <), intento sacar el <pre> o el primer bloque JSON
+  if (txt[0] === '<') {
+    // intenta extraer dentro de <pre>…</pre>
+    const preMatch = txt.match(/<pre[^>]*>([\s\S]*?)<\/pre>/i);
+    if (preMatch && preMatch[1]) {
+      txt = preMatch[1].trim();
+      // puede tener XSSI adentro también
+      if (txt.startsWith(")]}'")) txt = txt.replace(/^\)\]\}'\s*/, '');
+    } else {
+      // si no hay <pre>, tomo desde el primer '{' o '[' hasta su par
+      const start = Math.min(
+        ...['{', '['].map(ch => {
+          const i = txt.indexOf(ch);
+          return i === -1 ? Number.MAX_SAFE_INTEGER : i;
+        })
+      );
+      if (start !== Number.MAX_SAFE_INTEGER) {
+        txt = txt.slice(start);
+        // intenta cortar al final razonable
+        const endCurly = txt.lastIndexOf('}');
+        const endBracket = txt.lastIndexOf(']');
+        const end = Math.max(endCurly, endBracket);
+        if (end > 0) txt = txt.slice(0, end + 1);
+      }
+    }
+  }
+
+  // 3) parseo final
+  try {
+    return JSON.parse(txt);
+  } catch {
+    return null;
+  }
+}
+
 async function buscar(){
   const q = $('#q').value.trim();
   setSpin(true);
@@ -128,18 +172,27 @@ async function buscar(){
     for (const u of urls){
       const controller = new AbortController();
       const t = setTimeout(()=>controller.abort(), 15000);
+
       const res = await fetch(u, { method:'GET', redirect:'follow', signal: controller.signal }).catch(()=>null);
       clearTimeout(t);
-      if (!res || !res.ok) continue;
+      if (!res) continue;
 
-      const raw = await res.text();
-      try { json = raw ? JSON.parse(raw) : null; } catch { json = null; }
-      arr = Array.isArray(json?.items) ? json.items
-          : Array.isArray(json?.rows)  ? json.rows
-          : Array.isArray(json?.data)  ? json.data
-          : Array.isArray(json?.result)? json.result : null;
+      const raw = await res.text().catch(()=> '');
+      if (!res.ok) continue;
 
-      if (arr){ used = u.includes('fn=historial') ? 'fn=historial' : 'buscar=1'; break; }
+      json = parsePossiblyWrappedJSON(raw);
+      if (!json) continue;
+
+      arr = Array.isArray(json.items) ? json.items
+          : Array.isArray(json.rows)  ? json.rows
+          : Array.isArray(json.data)  ? json.data
+          : Array.isArray(json.result)? json.result
+          : null;
+
+      if (arr){
+        used = u.includes('fn=historial') ? 'fn=historial' : 'buscar=1';
+        break;
+      }
     }
 
     if (!arr){
