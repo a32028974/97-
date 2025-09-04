@@ -131,76 +131,67 @@ function applyFilters(){
 }
 
 // ====== buscar al servidor ======
-async function buscar(){
+async function buscar() {
   const q = $('#q').value.trim();
 
   setSpin(true);
   setStatus('');
-  try{
-    const base = API_URL.replace(/\?$/, '');
+  try {
+    const url = `${API_URL}?fn=historial&q=${encodeURIComponent(q)}&limit=500`;
 
-    // Variantes de endpoints y de nombre de parámetro
-    const handlers = ['fn=historial', 'buscar=1', 'historial=1'];
-    const params   = ['q', 'query', 's'];
-    const limits   = [500, 200, 100];
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort(), 15000);
 
-    let usedUrl = '';
-    let json = null;
-    let arr = null;
-    let rawLast = '';
+    // 👇 Forzamos que siga el redirect 302 automáticamente
+    const res = await fetch(url, {
+      method: 'GET',
+      redirect: 'follow',
+      signal: controller.signal
+    });
+    clearTimeout(t);
 
-    for (const h of handlers){
-      for (const p of params){
-        for (const L of limits){
-          const url = `${base}?${h}&${p}=${encodeURIComponent(q)}&limit=${L}`;
-
-          // timeout defensivo
-          const controller = new AbortController();
-          const t = setTimeout(()=>controller.abort(), 15000);
-
-          let res, raw;
-          try{
-            res = await fetch(url, { signal: controller.signal });
-            raw = await res.text();
-          }catch(e){
-            clearTimeout(t);
-            continue; // intentá la próxima variante
-          }
-          clearTimeout(t);
-
-          rawLast = raw;
-
-          if (!res.ok) continue;
-
-          try{
-            json = raw ? JSON.parse(raw) : null;
-          }catch(e){
-            continue; // no es JSON válido; probá siguiente
-          }
-
-          // aceptamos varios formatos
-          arr = Array.isArray(json?.items) ? json.items
-              : Array.isArray(json?.rows)  ? json.rows
-              : Array.isArray(json?.data)  ? json.data
-              : Array.isArray(json?.result)? json.result
-              : null;
-
-          if (arr && arr.length >= 0){
-            usedUrl = url;
-            break;
-          }
-        }
-        if (arr) break;
-      }
-      if (arr) break;
+    const raw = await res.text();
+    if (!res.ok) {
+      console.error('HTTP', res.status, raw);
+      throw new Error(`HTTP ${res.status}`);
     }
 
-    if (!arr){
-      setStatus(`<span style="color:#d33">Sin resultados o respuesta inválida</span><br><small>Última URL probada: <code>${API_URL}</code><br/>Raw (primeros 300): <code>${(rawLast||'').slice(0,300).replace(/[<>&]/g,s=>({ '<':'&lt;','>':'&gt;','&':'&amp;' }[s]))}</code></small>`);
-      ALL_ROWS = [];
-      applyFilters();
-      return;
+    let json;
+    try {
+      json = raw ? JSON.parse(raw) : null;
+    } catch (parseErr) {
+      console.error('Respuesta no JSON:', raw);
+      throw new Error('Respuesta inválida del servidor');
     }
+
+    // Soportamos varios formatos de respuesta
+    const arr = Array.isArray(json?.items)
+      ? json.items
+      : Array.isArray(json?.rows)
+        ? json.rows
+        : Array.isArray(json?.data)
+          ? json.data
+          : [];
+
+    ALL_ROWS = normalizeRows(arr);
+
+    const updated = json?.updatedAt ? ` · Actualizado: ${json.updatedAt}` : '';
+    setStatus(`<b>${ALL_ROWS.length}</b> resultado${ALL_ROWS.length !== 1 ? 's' : ''}${updated}`);
+
+    applyFilters();
+
+  } catch (err) {
+    console.error('Buscar falló:', err);
+    const msg = (err.name === 'AbortError')
+      ? 'La búsqueda tardó demasiado. Probá de nuevo.'
+      : 'Error al buscar';
+    setStatus(`<span style="color:#d33">${msg}</span>`);
+    ALL_ROWS = [];
+    applyFilters();
+  } finally {
+    setSpin(false);
+  }
+}
 
     // Normalizamos filas
     ALL_ROWS = normalizeRows(arr);
