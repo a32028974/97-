@@ -1,52 +1,44 @@
- // /historial/historial.js — v1
-// Página independiente de historial (carpeta /historial)
-// Usa API_URL del proyecto y llama al Apps Script con ?fn=historial
-
+// /historial/historial.js — v2 estable
 import { API_URL as BASE } from '../js/api.js';
 const API_URL = BASE;
 
-// ====== helpers UI ======
+// ===== helpers UI =====
 const $  = (s) => document.querySelector(s);
-
 function setSpin(on){ const sp = $('#spinner'); if (sp) sp.hidden = !on; }
 function setStatus(msg){ const el = $('#status'); if (el) el.innerHTML = msg || ''; }
 function showEmpty(show){ const el = $('#empty'); if (el) el.hidden = !show; }
 
-// ====== estado ======
-let ALL_ROWS = [];     // crudo normalizado para la UI
-let FILTERED = [];     // con filtros (solo PDF)
+// ===== estado =====
+let ALL_ROWS = [];
+let FILTERED = [];
 const PAGE_SIZE = 50;
 let page = 1;
 
-// ====== normalización de filas del server ======
+// ===== normalización =====
 function pickNonEmpty(...vals){
-  for (const v of vals) {
-    if (v !== undefined && v !== null && String(v).trim() !== '') return v;
-  }
+  for (const v of vals) if (v !== undefined && v !== null && String(v).trim() !== '') return v;
   return '';
 }
-
-function normalizeRows(rawList){
-  if (!Array.isArray(rawList)) return [];
-
-  return rawList.map(r => {
-    const numero = pickNonEmpty(r.numero, r.numero_trabajo, r.nro, r.id);
-    const fecha  = pickNonEmpty(r.fecha, r.fecha_encarga, r.fecha_que_encarga, r.fecha_alta);
-    const nombre = pickNonEmpty(
+function normalizeRows(list){
+  if (!Array.isArray(list)) return [];
+  return list.map(r=>{
+    const numero   = pickNonEmpty(r.numero, r.numero_trabajo, r.nro, r.id);
+    const fecha    = pickNonEmpty(r.fecha, r.fecha_encarga, r['fecha que encarga'], r.fecha_alta);
+    const nombre   = pickNonEmpty(
       r.nombre,
       (r.apellido && r.nombre_cliente) ? `${r.apellido}, ${r.nombre_cliente}` : '',
       (r.apellido && r.nombre) ? `${r.apellido}, ${r.nombre}` : '',
       r.cliente
     );
-    const dni       = pickNonEmpty(r.dni, r.documento);
-    const telefono  = pickNonEmpty(r.telefono, r.tel, r.celular, r.whatsapp);
-    const pdf       = pickNonEmpty(r.pdf, r.pack_url, r.link_pdf);
+    const dni      = pickNonEmpty(r.dni, r.documento);
+    const telefono = pickNonEmpty(r.telefono, r.tel, r.celular, r.whatsapp);
+    const pdf      = pickNonEmpty(r.pdf, r.pack_url, r.link_pdf);
 
     return { numero, fecha, nombre, dni, telefono, pdf };
   });
 }
 
-// ====== render ======
+// ===== render =====
 function renderPage(){
   const tbody = $('#tbody');
   tbody.innerHTML = '';
@@ -67,10 +59,7 @@ function renderPage(){
 
   const frag = document.createDocumentFragment();
   slice.forEach(r=>{
-    const pdfCell = r.pdf
-      ? `<a href="${r.pdf}" target="_blank" rel="noopener">Abrir PDF</a>`
-      : '<span style="opacity:.6">—</span>';
-
+    const pdfCell = r.pdf ? `<a href="${r.pdf}" target="_blank" rel="noopener">Abrir PDF</a>` : '<span style="opacity:.6">—</span>';
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${r.numero ?? ''}</td>
@@ -89,11 +78,9 @@ function renderPage(){
   });
   tbody.appendChild(frag);
 
-  // pager
   $('#pager').hidden = (totalPages <= 1);
   $('#pageInfo').textContent = `Página ${page} de ${totalPages} — ${FILTERED.length} resultado${FILTERED.length!==1?'s':''}`;
 
-  // acciones por fila
   tbody.querySelectorAll('button[data-act]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const pdf = btn.getAttribute('data-pdf');
@@ -103,11 +90,9 @@ function renderPage(){
       if (act==='open'){
         window.open(pdf, '_blank', 'noopener');
       } else if (act==='print'){
-        const w = window.open(pdf, '_blank', 'noopener');
-        if (!w) return;
+        const w = window.open(pdf, '_blank', 'noopener'); if (!w) return;
         const tryPrint = () => { try { w.focus(); w.print(); } catch(_){} };
-        w.onload = tryPrint;
-        setTimeout(tryPrint, 1200);
+        w.onload = tryPrint; setTimeout(tryPrint, 1200);
       } else if (act==='copy'){
         navigator.clipboard.writeText(pdf).then(()=>{
           if (window.Swal) Swal.fire({toast:true, position:'top', timer:1200, showConfirmButton:false, icon:'success', title:'Link copiado'});
@@ -117,127 +102,79 @@ function renderPage(){
   });
 }
 
-// ====== filtros cliente ======
+// ===== filtros =====
 function applyFilters(){
   const pdfOnly = $('#pdfOnly').checked;
-
-  FILTERED = ALL_ROWS.filter(r=>{
-    if (pdfOnly && !r.pdf) return false;
-    return true;
-  });
-
+  FILTERED = ALL_ROWS.filter(r => !pdfOnly || !!r.pdf);
   page = 1;
   renderPage();
 }
 
-// ====== buscar al servidor ======
-async function buscar() {
+// ===== buscar =====
+async function buscar(){
   const q = $('#q').value.trim();
-
   setSpin(true);
   setStatus('');
-  try {
-    const url = `${API_URL}?fn=historial&q=${encodeURIComponent(q)}&limit=500`;
+  try{
+    const urls = [
+      `${API_URL}?fn=historial&q=${encodeURIComponent(q)}&limit=500`,
+      `${API_URL}?buscar=1&q=${encodeURIComponent(q)}&limit=500`,
+    ];
 
-    const controller = new AbortController();
-    const t = setTimeout(() => controller.abort(), 15000);
+    let json = null;
+    let arr  = null;
+    let used = '';
 
-    // 👇 Forzamos que siga el redirect 302 automáticamente
-    const res = await fetch(url, {
-      method: 'GET',
-      redirect: 'follow',
-      signal: controller.signal
-    });
-    clearTimeout(t);
+    for (const u of urls){
+      const controller = new AbortController();
+      const t = setTimeout(()=>controller.abort(), 15000);
+      const res = await fetch(u, { method:'GET', redirect:'follow', signal: controller.signal }).catch(()=>null);
+      clearTimeout(t);
+      if (!res || !res.ok) continue;
 
-    const raw = await res.text();
-    if (!res.ok) {
-      console.error('HTTP', res.status, raw);
-      throw new Error(`HTTP ${res.status}`);
+      const raw = await res.text();
+      try { json = raw ? JSON.parse(raw) : null; } catch { json = null; }
+      arr = Array.isArray(json?.items) ? json.items
+          : Array.isArray(json?.rows)  ? json.rows
+          : Array.isArray(json?.data)  ? json.data
+          : Array.isArray(json?.result)? json.result : null;
+
+      if (arr){ used = u.includes('fn=historial') ? 'fn=historial' : 'buscar=1'; break; }
     }
 
-    let json;
-    try {
-      json = raw ? JSON.parse(raw) : null;
-    } catch (parseErr) {
-      console.error('Respuesta no JSON:', raw);
-      throw new Error('Respuesta inválida del servidor');
+    if (!arr){
+      setStatus('<span style="color:#d33">Sin resultados o respuesta inválida</span>');
+      ALL_ROWS = []; applyFilters(); return;
     }
-
-    // Soportamos varios formatos de respuesta
-    const arr = Array.isArray(json?.items)
-      ? json.items
-      : Array.isArray(json?.rows)
-        ? json.rows
-        : Array.isArray(json?.data)
-          ? json.data
-          : [];
 
     ALL_ROWS = normalizeRows(arr);
-
     const updated = json?.updatedAt ? ` · Actualizado: ${json.updatedAt}` : '';
-    setStatus(`<b>${ALL_ROWS.length}</b> resultado${ALL_ROWS.length !== 1 ? 's' : ''}${updated}`);
-
-    applyFilters();
-
-  } catch (err) {
-    console.error('Buscar falló:', err);
-    const msg = (err.name === 'AbortError')
-      ? 'La búsqueda tardó demasiado. Probá de nuevo.'
-      : 'Error al buscar';
-    setStatus(`<span style="color:#d33">${msg}</span>`);
-    ALL_ROWS = [];
-    applyFilters();
-  } finally {
-    setSpin(false);
-  }
-}
-
-    // Normalizamos filas
-    ALL_ROWS = normalizeRows(arr);
-
-    setStatus(`<b>${ALL_ROWS.length}</b> resultado${ALL_ROWS.length!==1?'s':''} · <small>via <code>${usedUrl.split('?')[1]}</code></small>${json?.updatedAt ? ' · Actualizado: '+json.updatedAt : ''}`);
-
+    setStatus(`<b>${ALL_ROWS.length}</b> resultado${ALL_ROWS.length!==1?'s':''} · vía <code>${used}</code>${updated}`);
     applyFilters();
 
   }catch(err){
     console.error('Buscar falló:', err);
-    const msg = (err.name === 'AbortError')
-      ? 'La búsqueda tardó demasiado. Probá de nuevo.'
-      : 'Error al buscar';
+    const msg = (err.name === 'AbortError') ? 'La búsqueda tardó demasiado. Probá de nuevo.' : 'Error al buscar';
     setStatus(`<span style="color:#d33">${msg}</span>`);
-    ALL_ROWS = [];
-    applyFilters();
+    ALL_ROWS = []; applyFilters();
   }finally{
     setSpin(false);
   }
 }
 
-// ====== eventos ======
+// ===== eventos =====
 function attach(){
   $('#btnBuscar')?.addEventListener('click', buscar);
   $('#btnLimpiar')?.addEventListener('click', ()=>{
-    $('#q').value = '';
-    setStatus('');
-    ALL_ROWS = [];
-    applyFilters();
+    $('#q').value = ''; setStatus(''); ALL_ROWS = []; applyFilters();
   });
   $('#q')?.addEventListener('keydown', (e)=>{ if (e.key === 'Enter') buscar(); });
-
   $('#pdfOnly')?.addEventListener('change', applyFilters);
-
   $('#prev')?.addEventListener('click', ()=>{ page--; renderPage(); });
   $('#next')?.addEventListener('click', ()=>{ page++; renderPage(); });
 }
-
 attach();
 
-// Búsqueda inicial opcional si viene ?q= en la URL
+// Si viene ?q= en la URL, busca de una
 const params = new URLSearchParams(location.search);
-if (params.get('q')) {
-  $('#q').value = params.get('q');
-  buscar();
-} else {
-  // Si querés que cargue sin escribir nada (ej. últimos 30 del server si tu backend lo soporta):
-  // buscar();
-}
+if (params.get('q')) { $('#q').value = params.get('q'); buscar(); }
