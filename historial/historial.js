@@ -1,20 +1,20 @@
-// /historial/historial.js — v2 estable
+// /historial/historial.js — v3 (live search + últimos 30 + sin “Solo PDF”)
 import { API_URL as BASE } from '../js/api.js';
 const API_URL = BASE;
 
-// ===== helpers UI =====
+// ---------- helpers UI ----------
 const $  = (s) => document.querySelector(s);
 function setSpin(on){ const sp = $('#spinner'); if (sp) sp.hidden = !on; }
 function setStatus(msg){ const el = $('#status'); if (el) el.innerHTML = msg || ''; }
 function showEmpty(show){ const el = $('#empty'); if (el) el.hidden = !show; }
 
-// ===== estado =====
+// ---------- estado ----------
 let ALL_ROWS = [];
 let FILTERED = [];
 const PAGE_SIZE = 50;
 let page = 1;
 
-// ===== normalización =====
+// ---------- normalización ----------
 function pickNonEmpty(...vals){
   for (const v of vals) if (v !== undefined && v !== null && String(v).trim() !== '') return v;
   return '';
@@ -22,23 +22,19 @@ function pickNonEmpty(...vals){
 function normalizeRows(list){
   if (!Array.isArray(list)) return [];
   return list.map(r=>{
+    // Apps Script que pasaste devuelve: {numero, nombre, cristal, armazon, telefono, vendedor}
+    // Aun así, toleramos alias por si cambia.
     const numero   = pickNonEmpty(r.numero, r.numero_trabajo, r.nro, r.id);
-    const fecha    = pickNonEmpty(r.fecha, r.fecha_encarga, r['fecha que encarga'], r.fecha_alta);
-    const nombre   = pickNonEmpty(
-      r.nombre,
-      (r.apellido && r.nombre_cliente) ? `${r.apellido}, ${r.nombre_cliente}` : '',
-      (r.apellido && r.nombre) ? `${r.apellido}, ${r.nombre}` : '',
-      r.cliente
-    );
+    const fecha    = pickNonEmpty(r.fecha, r.fecha_encarga, r.fecha_alta, r['fecha que encarga']); // si más adelante agregás fecha
+    const nombre   = pickNonEmpty(r.nombre, r.cliente);
     const dni      = pickNonEmpty(r.dni, r.documento);
     const telefono = pickNonEmpty(r.telefono, r.tel, r.celular, r.whatsapp);
-    const pdf      = pickNonEmpty(r.pdf, r.pack_url, r.link_pdf);
-
+    const pdf      = pickNonEmpty(r.pdf, r.pack_url, r.link_pdf); // si en algún momento lo agregás
     return { numero, fecha, nombre, dni, telefono, pdf };
   });
 }
 
-// ===== render =====
+// ---------- render ----------
 function renderPage(){
   const tbody = $('#tbody');
   tbody.innerHTML = '';
@@ -102,132 +98,122 @@ function renderPage(){
   });
 }
 
-// ===== filtros =====
+// ---------- filtros (sin “Solo PDF”) ----------
 function applyFilters(){
-  const pdfOnly = $('#pdfOnly').checked;
-  FILTERED = ALL_ROWS.filter(r => !pdfOnly || !!r.pdf);
+  // Eliminamos el filtro por PDF: siempre todo.
+  FILTERED = [...ALL_ROWS];
   page = 1;
   renderPage();
 }
 
-// ——— helper robusto para parsear JSON aunque venga envuelto en HTML/XSSI ———
+// ---------- parser robusto (por si Google envuelve en <pre> o XSSI) ----------
 function parsePossiblyWrappedJSON(raw) {
   if (!raw) return null;
   let txt = String(raw).trim();
-
-  // 1) quita prefijo XSSI típico de Google: )]}'
-  if (txt.startsWith(")]}'")) {
-    txt = txt.replace(/^\)\]\}'\s*/, '');
-  }
-
-  // 2) si viene HTML (empieza con <), intento sacar el <pre> o el primer bloque JSON
+  if (txt.startsWith(")]}'")) txt = txt.replace(/^\)\]\}'\s*/, '');
   if (txt[0] === '<') {
-    // intenta extraer dentro de <pre>…</pre>
-    const preMatch = txt.match(/<pre[^>]*>([\s\S]*?)<\/pre>/i);
-    if (preMatch && preMatch[1]) {
-      txt = preMatch[1].trim();
-      // puede tener XSSI adentro también
+    const pre = txt.match(/<pre[^>]*>([\s\S]*?)<\/pre>/i);
+    if (pre && pre[1]) {
+      txt = pre[1].trim();
       if (txt.startsWith(")]}'")) txt = txt.replace(/^\)\]\}'\s*/, '');
     } else {
-      // si no hay <pre>, tomo desde el primer '{' o '[' hasta su par
-      const start = Math.min(
-        ...['{', '['].map(ch => {
-          const i = txt.indexOf(ch);
-          return i === -1 ? Number.MAX_SAFE_INTEGER : i;
-        })
-      );
-      if (start !== Number.MAX_SAFE_INTEGER) {
-        txt = txt.slice(start);
-        // intenta cortar al final razonable
-        const endCurly = txt.lastIndexOf('}');
-        const endBracket = txt.lastIndexOf(']');
-        const end = Math.max(endCurly, endBracket);
-        if (end > 0) txt = txt.slice(0, end + 1);
+      const i = Math.min(...['{','['].map(c => (txt.indexOf(c) === -1 ? 1e12 : txt.indexOf(c))));
+      if (i < 1e12) {
+        txt = txt.slice(i);
+        const end = Math.max(txt.lastIndexOf('}'), txt.lastIndexOf(']'));
+        if (end > 0) txt = txt.slice(0, end+1);
       }
     }
   }
-
-  // 3) parseo final
-  try {
-    return JSON.parse(txt);
-  } catch {
-    return null;
-  }
+  try { return JSON.parse(txt); } catch { return null; }
 }
 
-async function buscar(){
-  const q = $('#q').value.trim();
-  setSpin(true);
-  setStatus('');
-  try{
-    const urls = [
-      `${API_URL}?fn=historial&q=${encodeURIComponent(q)}&limit=500`,
-      `${API_URL}?buscar=1&q=${encodeURIComponent(q)}&limit=500`,
-    ];
-
-    let json = null;
-    let arr  = null;
-    let used = '';
-
-    for (const u of urls){
-      const controller = new AbortController();
-      const t = setTimeout(()=>controller.abort(), 15000);
-
-      const res = await fetch(u, { method:'GET', redirect:'follow', signal: controller.signal }).catch(()=>null);
-      clearTimeout(t);
-      if (!res) continue;
-
-      const raw = await res.text().catch(()=> '');
-      if (!res.ok) continue;
-
-      json = parsePossiblyWrappedJSON(raw);
-      if (!json) continue;
-
-      arr = Array.isArray(json.items) ? json.items
-          : Array.isArray(json.rows)  ? json.rows
-          : Array.isArray(json.data)  ? json.data
-          : Array.isArray(json.result)? json.result
-          : null;
-
-      if (arr){
-        used = u.includes('fn=historial') ? 'fn=historial' : 'buscar=1';
-        break;
-      }
-    }
-
-    if (!arr){
-      setStatus('<span style="color:#d33">Sin resultados o respuesta inválida</span>');
-      ALL_ROWS = []; applyFilters(); return;
-    }
-
-    ALL_ROWS = normalizeRows(arr);
-    const updated = json?.updatedAt ? ` · Actualizado: ${json.updatedAt}` : '';
-    setStatus(`<b>${ALL_ROWS.length}</b> resultado${ALL_ROWS.length!==1?'s':''} · vía <code>${used}</code>${updated}`);
-    applyFilters();
-
-  }catch(err){
-    console.error('Buscar falló:', err);
-    const msg = (err.name === 'AbortError') ? 'La búsqueda tardó demasiado. Probá de nuevo.' : 'Error al buscar';
-    setStatus(`<span style="color:#d33">${msg}</span>`);
-    ALL_ROWS = []; applyFilters();
-  }finally{
-    setSpin(false);
-  }
+// ---------- llamadas ----------
+async function fetchUltimos30(){
+  const u = `${API_URL}?histUltimos=30`;
+  const res = await fetch(u, { method:'GET', redirect:'follow', cache:'no-store' });
+  const raw = await res.text();
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const json = parsePossiblyWrappedJSON(raw);
+  // Tu Apps Script de “histUltimos” devuelve array directo → lo aceptamos.
+  const arr = Array.isArray(json) ? json
+           : Array.isArray(json?.rows) ? json.rows
+           : Array.isArray(json?.items) ? json.items
+           : Array.isArray(json?.data) ? json.data
+           : Array.isArray(json?.result) ? json.result
+           : [];
+  return normalizeRows(arr);
 }
 
-// ===== eventos =====
+async function fetchBuscar(q){
+  const u = `${API_URL}?histBuscar=${encodeURIComponent(q)}&limit=500`;
+  const res = await fetch(u, { method:'GET', redirect:'follow', cache:'no-store' });
+  const raw = await res.text();
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const json = parsePossiblyWrappedJSON(raw);
+  const arr = Array.isArray(json) ? json
+           : Array.isArray(json?.rows) ? json.rows
+           : Array.isArray(json?.items) ? json.items
+           : Array.isArray(json?.data) ? json.data
+           : Array.isArray(json?.result) ? json.result
+           : [];
+  return normalizeRows(arr);
+}
+
+// ---------- buscar (live) ----------
+let debounceTimer;
+function liveSearch(){
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(async () => {
+    const q = ($('#q')?.value || '').trim();
+    setSpin(true);
+    setStatus('');
+    try{
+      ALL_ROWS = q ? await fetchBuscar(q) : await fetchUltimos30();
+      setStatus(`<b>${ALL_ROWS.length}</b> resultado${ALL_ROWS.length!==1?'s':''}`);
+      applyFilters();
+    }catch(e){
+      console.error(e);
+      setStatus(`<span style="color:#d33">Error al buscar</span>`);
+      ALL_ROWS = []; applyFilters();
+    }finally{
+      setSpin(false);
+    }
+  }, 300); // 300ms: búsqueda en vivo sin “Buscar”
+}
+
+// ---------- init y eventos ----------
 function attach(){
-  $('#btnBuscar')?.addEventListener('click', buscar);
+  // Si quedó el checkbox “Solo con PDF” en el HTML, lo oculto y deshabilito
+  const pdfOnlyWrap = $('#pdfOnly')?.closest('label, .chk, div');
+  if (pdfOnlyWrap) pdfOnlyWrap.style.display = 'none';
+
+  // Quitar la necesidad de botón “Buscar”: escuchamos input
+  $('#btnBuscar')?.addEventListener('click', e => { e.preventDefault(); /* ya no se usa */ });
+  $('#q')?.addEventListener('input', liveSearch);
+  $('#q')?.addEventListener('keydown', (e)=>{ if (e.key === 'Enter') e.preventDefault(); });
+
   $('#btnLimpiar')?.addEventListener('click', ()=>{
-    $('#q').value = ''; setStatus(''); ALL_ROWS = []; applyFilters();
+    $('#q').value = '';
+    liveSearch();
   });
-  $('#q')?.addEventListener('keydown', (e)=>{ if (e.key === 'Enter') buscar(); });
-  $('#pdfOnly')?.addEventListener('change', applyFilters);
+
   $('#prev')?.addEventListener('click', ()=>{ page--; renderPage(); });
   $('#next')?.addEventListener('click', ()=>{ page++; renderPage(); });
+
+  // Carga automática: últimos 30 al abrir
+  (async () => {
+    setSpin(true);
+    try{
+      ALL_ROWS = await fetchUltimos30();
+      setStatus(`<b>${ALL_ROWS.length}</b> resultado${ALL_ROWS.length!==1?'s':''} · últimos 30`);
+      applyFilters();
+    }catch(e){
+      console.error(e);
+      setStatus(`<span style="color:#d33">No se pudo cargar el historial</span>`);
+    }finally{
+      setSpin(false);
+    }
+  })();
 }
 attach();
-
-// Si viene ?q= en la URL, busca de una
-const params = new URLSearchParams(location.search);
-if (params.get('q')) { $('#q').value = params.get('q'); buscar(); }
