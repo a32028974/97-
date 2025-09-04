@@ -21,18 +21,24 @@ function pickNonEmpty(...vals){
 }
 function normalizeRows(list){
   if (!Array.isArray(list)) return [];
-  return list.map(r=>{
-    // Apps Script que pasaste devuelve: {numero, nombre, cristal, armazon, telefono, vendedor}
-    // Aun así, toleramos alias por si cambia.
-    const numero   = pickNonEmpty(r.numero, r.numero_trabajo, r.nro, r.id);
-    const fecha    = pickNonEmpty(r.fecha, r.fecha_encarga, r.fecha_alta, r['fecha que encarga']); // si más adelante agregás fecha
-    const nombre   = pickNonEmpty(r.nombre, r.cliente);
-    const dni      = pickNonEmpty(r.dni, r.documento);
-    const telefono = pickNonEmpty(r.telefono, r.tel, r.celular, r.whatsapp);
-    const pdf      = pickNonEmpty(r.pdf, r.pack_url, r.link_pdf); // si en algún momento lo agregás
-    return { numero, fecha, nombre, dni, telefono, pdf };
-  });
+  return list.map(r=>({
+    estado:      r.estado ?? '',
+    fecha:       r.fecha ?? '',
+    retira:      r.retira ?? '',
+    numero:      r.numero ?? '',
+    dni:         r.dni ?? '',
+    nombre:      r.nombre ?? '',
+    cristal:     r.cristal ?? '',
+    n_armazon:   r.n_armazon ?? '',
+    det_armazon: r.det_armazon ?? '',
+    dist_focal:  r.dist_focal ?? '',
+    vendedor:    r.vendedor ?? '',
+    telefono:    r.telefono ?? '',
+    // pdf queda por compatibilidad; puede venir vacío
+    pdf:         r.pdf ?? ''
+  }));
 }
+
 
 // ---------- render ----------
 function renderPage(){
@@ -55,16 +61,21 @@ function renderPage(){
 
   const frag = document.createDocumentFragment();
   slice.forEach(r=>{
-    const pdfCell = r.pdf ? `<a href="${r.pdf}" target="_blank" rel="noopener">Abrir PDF</a>` : '<span style="opacity:.6">—</span>';
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td>${r.numero ?? ''}</td>
-      <td>${r.fecha ?? ''}</td>
-      <td>${r.nombre ?? ''}</td>
-      <td>${r.dni ?? ''}</td>
-      <td>${r.telefono ?? ''}</td>
-      <td>${pdfCell}</td>
-      <td class="row" style="gap:6px">
+      <td>${r.estado}</td>
+      <td>${r.fecha}</td>
+      <td>${r.retira}</td>
+      <td style="font-variant-numeric:tabular-nums">${r.numero}</td>
+      <td>${r.dni}</td>
+      <td>${r.nombre}</td>
+      <td>${r.cristal}</td>
+      <td>${r.n_armazon}</td>
+      <td>${r.det_armazon}</td>
+      <td>${r.dist_focal}</td>
+      <td>${r.vendedor}</td>
+      <td>${r.telefono}</td>
+      <td class="row" style="gap:6px; white-space:nowrap">
         <button class="btn-secondary" ${r.pdf?'':'disabled'} data-act="open"  data-pdf="${r.pdf||''}">Abrir</button>
         <button class="btn-secondary" ${r.pdf?'':'disabled'} data-act="print" data-pdf="${r.pdf||''}">Imprimir</button>
         <button class="btn-secondary" ${r.pdf?'':'disabled'} data-act="copy"  data-pdf="${r.pdf||''}">Copiar link</button>
@@ -74,15 +85,16 @@ function renderPage(){
   });
   tbody.appendChild(frag);
 
+  // Paginación
   $('#pager').hidden = (totalPages <= 1);
   $('#pageInfo').textContent = `Página ${page} de ${totalPages} — ${FILTERED.length} resultado${FILTERED.length!==1?'s':''}`;
 
+  // Acciones
   tbody.querySelectorAll('button[data-act]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const pdf = btn.getAttribute('data-pdf');
       const act = btn.getAttribute('data-act');
       if (!pdf) return;
-
       if (act==='open'){
         window.open(pdf, '_blank', 'noopener');
       } else if (act==='print'){
@@ -97,6 +109,7 @@ function renderPage(){
     });
   });
 }
+
 
 // ---------- filtros (sin “Solo PDF”) ----------
 function applyFilters(){
