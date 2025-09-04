@@ -134,46 +134,62 @@ function applyFilters(){
 async function buscar(){
   const q = $('#q').value.trim();
 
-  // Permitimos búsqueda vacía: si querés, comentá estas 3 líneas y forzá escribir algo.
-  // if (!q){
-  //   setStatus('Escribí algo para buscar…');
-  //   return;
-  // }
-
   setSpin(true);
   setStatus('');
   try{
-    const url = `${API_URL}?fn=historial&q=${encodeURIComponent(q)}&limit=500`;
+    // Intento 1: handler nuevo ?fn=historial
+    const urls = [
+      `${API_URL}?fn=historial&q=${encodeURIComponent(q)}&limit=500`,
+      `${API_URL}?buscar=1&q=${encodeURIComponent(q)}&limit=500`,            // fallback a handler viejo
+    ];
 
-    const controller = new AbortController();              // timeout defensivo
-    const t = setTimeout(()=>controller.abort(), 15000);
+    let json = null;
+    let used = '';
 
-    const res = await fetch(url, { method:'GET', signal: controller.signal });
-    clearTimeout(t);
+    // probamos en orden hasta que uno devuelva lista
+    for (const u of urls){
+      // fetch con timeout defensivo
+      const controller = new AbortController();
+      const t = setTimeout(()=>controller.abort(), 15000);
+      const res = await fetch(u, { method:'GET', signal: controller.signal }).catch(e => ({ ok:false, _err:e }));
+      clearTimeout(t);
 
-    const raw = await res.text();
-    if (!res.ok){
-      console.error('HTTP', res.status, raw);
-      throw new Error(`HTTP ${res.status}`);
-    }
+      if (!res || !res.ok){
+        continue; // probamos el próximo
+      }
 
-    let json;
-    try{
-      json = raw ? JSON.parse(raw) : null;
-    }catch(parseErr){
-      console.error('Respuesta no JSON:', raw);
-      throw new Error('Respuesta del servidor inválida');
-    }
+      const raw = await res.text();
+      try {
+        json = raw ? JSON.parse(raw) : null;
+      } catch(parseErr){
+        console.warn('Respuesta no JSON para', u, raw);
+        json = null;
+      }
 
-    // Soportamos {items: [...]} o {rows: [...]}
-    const list = Array.isArray(json?.items) ? json.items
+      // Aceptamos varios formatos: {items}, {rows}, {ok:true,data}, {result}
+      const arr = Array.isArray(json?.items) ? json.items
                : Array.isArray(json?.rows)  ? json.rows
-               : [];
+               : Array.isArray(json?.data)  ? json.data
+               : Array.isArray(json?.result)? json.result
+               : null;
 
-    ALL_ROWS = normalizeRows(list);
+      if (arr && arr.length >= 0){
+        used = u.includes('fn=historial') ? 'fn=historial' : 'buscar=1';
+        // normalizamos y salimos del loop
+        ALL_ROWS = normalizeRows(arr);
+        break;
+      }
+    }
+
+    if (!json){
+      setStatus(`<span style="color:#d33">No hubo respuesta válida del servidor</span>`);
+      ALL_ROWS = [];
+      applyFilters();
+      return;
+    }
 
     const updated = json?.updatedAt ? ` · Actualizado: ${json.updatedAt}` : '';
-    setStatus(`<b>${ALL_ROWS.length}</b> resultado${ALL_ROWS.length!==1?'s':''}${updated}`);
+    setStatus(`<b>${ALL_ROWS.length}</b> resultado${ALL_ROWS.length!==1?'s':''} · vía <code>${used}</code>${updated}`);
 
     applyFilters();
 
