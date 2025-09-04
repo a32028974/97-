@@ -353,6 +353,85 @@ function setupCalculos(){
   updateTotals();
 }
 
+// ===== Prefill desde el historial =====
+(function prefillDesdeHistorial(){
+  let raw = null, data = null;
+  try { raw = sessionStorage.getItem('prefill_trabajo'); } catch {}
+  if (!raw) return;
+
+  try { data = JSON.parse(raw); } catch { data = null; }
+  // limpiamos para que no se vuelva a pegar si recargás
+  try { sessionStorage.removeItem('prefill_trabajo'); } catch {}
+
+  if (!data) return;
+
+  // helpers
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val ?? ''; };
+  const setSelectIfExists = (id, val) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const v = String(val ?? '').trim();
+    // solo setea si la opción existe; si no, lo deja como está para evitar inconsistencias
+    if (!v) return;
+    const opt = Array.from(el.options).find(o => String(o.value).toUpperCase() === v.toUpperCase()
+                                              || String(o.textContent).toUpperCase() === v.toUpperCase());
+    if (opt) el.value = opt.value;
+  };
+  const ddmmyy_to_yyyy_mm_dd = (txt) => {
+    // soporta dd/MM/yy o dd/MM/yyyy
+    if (!txt) return '';
+    const m = String(txt).match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+    if (!m) return '';
+    const dd = m[1].padStart(2,'0');
+    const mm = m[2].padStart(2,'0');
+    const yy = m[3].length===2 ? ('20'+m[3]) : m[3];
+    return `${yy}-${mm}-${dd}`;
+  };
+
+  // mapping de tus campos
+  set('numero_trabajo', data.numero);
+  const hidden = document.getElementById('numero_trabajo_hidden');
+  if (hidden) hidden.value = data.numero;
+
+  // fecha encarga (tu input no es type=date)
+  set('fecha', data.fecha);
+
+  // fecha que retira SÍ es type=date -> convertir si viene dd/MM/yy
+  const retiraISO = ddmmyy_to_yyyy_mm_dd(data.retira);
+  set('fecha_retira', retiraISO || data.retira || '');
+
+  set('dni', data.dni);
+  set('nombre', data.nombre);
+  set('telefono', data.telefono);
+
+  set('cristal', data.cristal);
+  set('numero_armazon', data.n_armazon);
+  set('armazon_detalle', data.det_armazon);
+  set('vendedor', data.vendedor);
+
+  // distancia focal es un <select>
+  setSelectIfExists('distancia_focal', data.dist_focal);
+
+  // si querés setear entrega/forma de pago con defaults (opcional)
+  // setSelectIfExists('entrega-select', '7');  // por ejemplo
+
+  // si tu UI recalcula totales/saldo cuando cambia algo:
+  // podés disparar eventos input/change de ser necesario:
+  ['numero_trabajo','fecha','fecha_retira','dni','nombre','telefono','cristal',
+   'numero_armazon','armazon_detalle','vendedor'
+  ].forEach(id=>{
+    const el = document.getElementById(id);
+    if (el) { el.dispatchEvent(new Event('input',{bubbles:true})); el.dispatchEvent(new Event('change',{bubbles:true})); }
+  });
+
+  // si querés llevar el foco a algún campo:
+  const foco = document.getElementById('telefono') || document.getElementById('cristal');
+  if (foco) foco.focus();
+})();
+
+
+
+
 // =========================================================================
 /** Historial */
 // =========================================================================
