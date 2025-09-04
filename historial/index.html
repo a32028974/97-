@@ -12,7 +12,7 @@
   <header class="topbar">
     <div class="brand">
       <img src="../logo_muy_chico_sinfondo.png" alt="Logo" class="logo" />
-      <h1>Historial de trabajosv3</h1>
+      <h1>Historial de trabajosv4</h1>
     </div>
     <div class="help">
       <details>
@@ -48,23 +48,30 @@
     <section class="card results">
       <div id="spinner" class="spinner" hidden></div>
 
-      <div class="table-wrap">
-        <table class="table" id="tabla">
-          <thead>
-          <tr>
-            <th style="width:110px">N°</th>
-            <th style="width:120px">Fecha</th>
-            <th>Cliente</th>
-            <th style="width:120px">DNI</th>
-            <th style="width:140px">Teléfono</th>
-            <th style="width:160px">PDF</th>
-            <th style="width:210px">Acciones</th>
-          </tr>
-          </thead>
-          <tbody id="tbody"></tbody>
-        </table>
-        <div id="empty" class="empty" hidden>Sin resultados</div>
-      </div>
+      <div class="table-wrap" style="overflow:auto">
+  <table class="table" id="tabla" style="min-width:1200px">
+    <thead>
+      <tr>
+        <th>Estado</th>
+        <th>Fecha</th>
+        <th>Prometida</th>
+        <th>N°</th>
+        <th>DNI</th>
+        <th>Cliente</th>
+        <th>Cristal</th>
+        <th>N° Armazón</th>
+        <th>Detalle armazón</th>
+        <th>Dist. focal</th>
+        <th>Vendedor</th>
+        <th>Teléfono</th>
+        <th style="width:210px">Acciones</th>
+      </tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+  <div id="empty" class="empty" hidden>Sin resultados</div>
+</div>
+
 
       <div class="pager" id="pager" hidden>
         <button id="prev" class="btn-secondary">&laquo; Anterior</button>
