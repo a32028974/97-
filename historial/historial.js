@@ -1,4 +1,4 @@
-// /historial/historial.js — v3 (live search + últimos 30 + sin “Solo PDF”)
+// /historial/historial.js — v6 (live search + 30 últimos + “Cargar”)
 import { API_URL as BASE } from '../js/api.js';
 const API_URL = BASE;
 
@@ -15,10 +15,6 @@ const PAGE_SIZE = 50;
 let page = 1;
 
 // ---------- normalización ----------
-function pickNonEmpty(...vals){
-  for (const v of vals) if (v !== undefined && v !== null && String(v).trim() !== '') return v;
-  return '';
-}
 function normalizeRows(list){
   if (!Array.isArray(list)) return [];
   return list.map(r=>({
@@ -34,11 +30,9 @@ function normalizeRows(list){
     dist_focal:  r.dist_focal ?? '',
     vendedor:    r.vendedor ?? '',
     telefono:    r.telefono ?? '',
-    // pdf queda por compatibilidad; puede venir vacío
     pdf:         r.pdf ?? ''
   }));
 }
-
 
 // ---------- render ----------
 function renderPage(){
@@ -60,76 +54,79 @@ function renderPage(){
   const slice = FILTERED.slice(start, start + PAGE_SIZE);
 
   const frag = document.createDocumentFragment();
-slice.forEach((r, i)=>{
-  const tr = document.createElement('tr');
-  tr.innerHTML = `
-    <td>${r.estado}</td>
-    <td>${r.fecha}</td>
-    <td>${r.retira}</td>
-    <td style="font-variant-numeric:tabular-nums">${r.numero}</td>
-    <td>${r.dni}</td>
-    <td>${r.nombre}</td>
-    <td>${r.cristal}</td>
-    <td>${r.n_armazon}</td>
-    <td>${r.det_armazon}</td>
-    <td>${r.dist_focal}</td>
-    <td>${r.vendedor}</td>
-    <td>${r.telefono}</td>
-    <td class="row" style="gap:6px; white-space:nowrap">
-      <button class="btn" data-act="fill" data-abs-idx="${start + i}">Cargar</button>
-      <button class="btn-secondary" ${r.pdf?'':'disabled'} data-act="open"  data-pdf="${r.pdf||''}">Abrir</button>
-      <button class="btn-secondary" ${r.pdf?'':'disabled'} data-act="print" data-pdf="${r.pdf||''}">Imprimir</button>
-      <button class="btn-secondary" ${r.pdf?'':'disabled'} data-act="copy"  data-pdf="${r.pdf||''}">Copiar link</button>
-    </td>
-  `;
-  frag.appendChild(tr);
-});
-tbody.appendChild(frag);
+  slice.forEach((r, i)=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${r.estado}</td>
+      <td>${r.fecha}</td>
+      <td>${r.retira}</td>
+      <td style="font-variant-numeric:tabular-nums">${r.numero}</td>
+      <td>${r.dni}</td>
+      <td>${r.nombre}</td>
+      <td>${r.cristal}</td>
+      <td>${r.n_armazon}</td>
+      <td>${r.det_armazon}</td>
+      <td>${r.dist_focal}</td>
+      <td>${r.vendedor}</td>
+      <td>${r.telefono}</td>
+      <td class="row" style="gap:6px; white-space:nowrap">
+        <button class="btn" data-act="fill" data-abs-idx="${start + i}">Cargar</button>
+        <button class="btn-secondary" ${r.pdf?'':'disabled'} data-act="open"  data-pdf="${r.pdf||''}">Abrir</button>
+        <button class="btn-secondary" ${r.pdf?'':'disabled'} data-act="print" data-pdf="${r.pdf||''}">Imprimir</button>
+        <button class="btn-secondary" ${r.pdf?'':'disabled'} data-act="copy"  data-pdf="${r.pdf||''}">Copiar link</button>
+      </td>
+    `;
+    frag.appendChild(tr);
+  });
+  tbody.appendChild(frag);
 
   // Paginación
   $('#pager').hidden = (totalPages <= 1);
   $('#pageInfo').textContent = `Página ${page} de ${totalPages} — ${FILTERED.length} resultado${FILTERED.length!==1?'s':''}`;
 
-  // acciones por fila (incluye el nuevo "fill")
-tbody.querySelectorAll('button[data-act]').forEach(btn=>{
-  btn.addEventListener('click', ()=>{
-    const act = btn.getAttribute('data-act');
-    if (act === 'fill') {
-      const idx = Number(btn.getAttribute('data-abs-idx'));
-      const row = FILTERED[idx];
-      try {
-        sessionStorage.setItem('prefill_trabajo', JSON.stringify(row));
-      } catch {}
-      // navegá al formulario (ajustá la ruta si tu index está en otro lugar)
-      window.location.href = '../index.html#prefill';
-      return;
-    }
-    const pdf = btn.getAttribute('data-pdf');
-    if (!pdf) return;
-    if (act==='open'){
-      window.open(pdf, '_blank', 'noopener');
-    } else if (act==='print'){
-      const w = window.open(pdf, '_blank', 'noopener'); if (!w) return;
-      const tryPrint = () => { try { w.focus(); w.print(); } catch(_){} };
-      w.onload = tryPrint; setTimeout(tryPrint, 1200);
-    } else if (act==='copy'){
-      navigator.clipboard.writeText(pdf).then(()=>{
-        if (window.Swal) Swal.fire({toast:true, position:'top', timer:1200, showConfirmButton:false, icon:'success', title:'Link copiado'});
-      });
-    }
+  // Acciones por fila
+  tbody.querySelectorAll('button[data-act]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const act = btn.getAttribute('data-act');
+      if (act === 'fill') {
+        const idx = Number(btn.getAttribute('data-abs-idx'));
+        const row = FILTERED[idx];
+        try { sessionStorage.setItem('prefill_trabajo', JSON.stringify(row)); } catch {}
+        window.location.href = '../index.html#prefill';
+        return;
+      }
+      const pdf = btn.getAttribute('data-pdf');
+      if (!pdf) return;
+      if (act==='open'){
+        window.open(pdf, '_blank', 'noopener');
+      } else if (act==='print'){
+        const w = window.open(pdf, '_blank', 'noopener'); if (!w) return;
+        const tryPrint = () => { try { w.focus(); w.print(); } catch(_){} };
+        w.onload = tryPrint; setTimeout(tryPrint, 1200);
+      } else if (act==='copy'){
+        navigator.clipboard.writeText(pdf).then(()=>{
+          if (window.Swal) Swal.fire({toast:true, position:'top', timer:1200, showConfirmButton:false, icon:'success', title:'Link copiado'});
+        });
+      }
+    });
   });
+}
+
+// click en toda la fila para “Cargar”
+document.getElementById('tbody')?.addEventListener('click', (e)=>{
+  const tr = e.target.closest('tr'); if (!tr) return;
+  const btn = tr.querySelector('button[data-act="fill"]');
+  if (btn) btn.click();
 });
 
-
-// ---------- filtros (sin “Solo PDF”) ----------
+// ---------- sin filtros (siempre todo)
 function applyFilters(){
-  // Eliminamos el filtro por PDF: siempre todo.
   FILTERED = [...ALL_ROWS];
   page = 1;
   renderPage();
 }
 
-// ---------- parser robusto (por si Google envuelve en <pre> o XSSI) ----------
+// ---------- parser robusto (por si viene envuelto en <pre> o con XSSI)
 function parsePossiblyWrappedJSON(raw) {
   if (!raw) return null;
   let txt = String(raw).trim();
@@ -151,14 +148,13 @@ function parsePossiblyWrappedJSON(raw) {
   try { return JSON.parse(txt); } catch { return null; }
 }
 
-// ---------- llamadas ----------
+// ---------- calls ----------
 async function fetchUltimos30(){
   const u = `${API_URL}?histUltimos=30`;
   const res = await fetch(u, { method:'GET', redirect:'follow', cache:'no-store' });
   const raw = await res.text();
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const json = parsePossiblyWrappedJSON(raw);
-  // Tu Apps Script de “histUltimos” devuelve array directo → lo aceptamos.
   const arr = Array.isArray(json) ? json
            : Array.isArray(json?.rows) ? json.rows
            : Array.isArray(json?.items) ? json.items
@@ -183,7 +179,7 @@ async function fetchBuscar(q){
   return normalizeRows(arr);
 }
 
-// ---------- buscar (live) ----------
+// ---------- live search ----------
 let debounceTimer;
 function liveSearch(){
   clearTimeout(debounceTimer);
@@ -202,29 +198,23 @@ function liveSearch(){
     }finally{
       setSpin(false);
     }
-  }, 300); // 300ms: búsqueda en vivo sin “Buscar”
+  }, 300);
 }
 
-// ---------- init y eventos ----------
+// ---------- init ----------
 function attach(){
-  // Si quedó el checkbox “Solo con PDF” en el HTML, lo oculto y deshabilito
+  // oculto (por si quedó en el HTML)
   const pdfOnlyWrap = $('#pdfOnly')?.closest('label, .chk, div');
   if (pdfOnlyWrap) pdfOnlyWrap.style.display = 'none';
 
-  // Quitar la necesidad de botón “Buscar”: escuchamos input
   $('#btnBuscar')?.addEventListener('click', e => { e.preventDefault(); /* ya no se usa */ });
   $('#q')?.addEventListener('input', liveSearch);
   $('#q')?.addEventListener('keydown', (e)=>{ if (e.key === 'Enter') e.preventDefault(); });
-
-  $('#btnLimpiar')?.addEventListener('click', ()=>{
-    $('#q').value = '';
-    liveSearch();
-  });
+  $('#btnLimpiar')?.addEventListener('click', ()=>{ $('#q').value=''; liveSearch(); });
 
   $('#prev')?.addEventListener('click', ()=>{ page--; renderPage(); });
   $('#next')?.addEventListener('click', ()=>{ page++; renderPage(); });
 
-  // Carga automática: últimos 30 al abrir
   (async () => {
     setSpin(true);
     try{
