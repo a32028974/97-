@@ -236,3 +236,14 @@ button.ghost{ background:#eef2ff; color:var(--brand); }
   .print-area{ display:block !important; }
   input,select,textarea,button{ -webkit-print-color-adjust:exact; print-color-adjust:exact; }
 }
+
+/* en tu css/estilos.css */
+#historial { margin-top: 10px; }
+#hist-lista { display: grid; gap: 6px; }
+.hist-item {
+  text-align: left; background: transparent; border: 0;
+  border-bottom: 1px dashed #ddd; padding: 4px 0; cursor: pointer;
+}
+.hist-item:hover { background: #f7f8fa; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+.muted { opacity: .7; }
