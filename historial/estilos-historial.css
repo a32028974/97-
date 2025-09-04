@@ -44,5 +44,11 @@ th, td{ border-bottom:1px solid var(--line); padding:8px 10px; white-space:nowra
 /* antes: url(img/logo_muy_chico_sinfondo.png) o url(./img/...) */
 background-image: url("/logo_muy_chico_sinfondo.png");  /* imagen en la raíz */
 
+/* tabla más compacta */
+.table th, .table td { padding: 6px 8px !important; line-height: 1.2; vertical-align: middle; }
+.table tr + tr { border-top: 1px solid #eee; }
+.table thead th { position: sticky; top: 0; background:#fff; z-index:1; }
+.table { border-collapse: separate; border-spacing: 0; }
+
 
 .footer{ text-align:center; padding:10px; color:var(--muted) }
