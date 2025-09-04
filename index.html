@@ -365,6 +365,14 @@
 
 
   <!-- JS -->
+  <script>
+  (function(){
+    if (location.hash === '#prefill' && window.Swal) {
+      Swal.fire({toast:true, position:'top', timer:1500, showConfirmButton:false, icon:'info', title:'Datos cargados desde historial'});
+    }
+  })();
+</script>
+
   <script type="module" src="./js/main.js?v=13"></script>
   <script type="module" src="./js/hist-mini.js?v=1"></script>
 </body>
