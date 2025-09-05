@@ -1,109 +1,110 @@
-// /js/print.js — v2025-09-05f
-// Ticket vertical 130×155 mm, top-left, barcode 55×8 mm, IFRAME + JsBarcode
+// /js/print.js — v2025-09-05g
+// Ticket vertical 130×155 mm, pegado arriba/izq, barcode 55×8 mm
+// Imprime en un IFRAME (sin popups). Genera Code128 como SVG con JsBarcode.
 
-// ===== Parámetros fáciles de ajustar =====
-const PAGE_W_MM = 130;        // ancho página (vertical)
-const PAGE_H_MM = 155;        // alto página
-const PAGE_MARGIN_MM = 0;     // márgenes de @page (0 = lo más arriba/izq posible)
-const BAR_W_MM = 55;          // ancho del código de barras
-const BAR_H_MM = 8;           // alto del código de barras
+(function () {
+  // ===== Parámetros =====
+  const PAGE_W_MM = 130;        // ancho página (vertical)
+  const PAGE_H_MM = 155;        // alto página
+  const BAR_W_MM  = 55;         // ancho código de barras
+  const BAR_H_MM  = 8;          // alto código de barras
 
-// ===== Helpers DOM & formatos =====
-const $ = (id) => document.getElementById(id);
+  // ===== Helpers DOM & formatos =====
+  const $ = (id) => document.getElementById(id);
 
-const getSelText = (el) => {
-  if (!el) return '';
-  if (el.tagName === 'SELECT') {
-    const o = el.options[el.selectedIndex];
-    return (o?.textContent || o?.value || '').trim();
-  }
-  return (el.value || '').trim();
-};
-
-function normNumberLike(v) {
-  if (v == null) return 0;
-  const s = String(v).replace(/[^\d.,-]/g, '').replace(/\./g, '').replace(',', '.');
-  const n = parseFloat(s);
-  return isNaN(n) ? 0 : n;
-}
-function money(v) {
-  const n = Math.max(0, normNumberLike(v));
-  return '$ ' + n.toLocaleString('es-AR', { maximumFractionDigits: 0 });
-}
-
-// fechas
-function parseFechaLoose(str) {
-  if (!str) return null;
-  if (str instanceof Date) return isNaN(str) ? null : str;
-  const s = String(str).trim();
-  let m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
-  if (m) {
-    const dd = +m[1], mm = +m[2], yyyy = m[3].length === 2 ? +( '20' + m[3]) : +m[3];
-    const d = new Date(yyyy, mm - 1, dd);
-    return isNaN(d) ? null : d;
-  }
-  m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (m) return new Date(+m[1], +m[2]-1, +m[3]);
-  const d2 = new Date(s);
-  return isNaN(d2) ? null : d2;
-}
-function ddmmyyyy(d) {
-  const dd = String(d.getDate()).padStart(2,'0');
-  const mm = String(d.getMonth()+1).padStart(2,'0');
-  const yy = d.getFullYear();
-  return `${dd}/${mm}/${yy}`;
-}
-function safeDDMMYYYY(inputEl, fallback='') {
-  const raw = (inputEl?.value || '').trim() || fallback;
-  const d = parseFechaLoose(raw);
-  return d ? ddmmyyyy(d) : (raw || '');
-}
-
-const dash = (v) => (v && String(v).trim()) ? String(v).trim() : '—';
-
-// ===== Leo los datos del formulario =====
-function collectForm() {
-  return {
-    numero: dash($('numero_trabajo')?.value),
-    cliente: dash($('nombre')?.value),
-    dni: dash($('dni')?.value),
-    tel: dash($('telefono')?.value),
-
-    fecha:  safeDDMMYYYY($('fecha')),
-    retira: safeDDMMYYYY($('fecha_retira')),
-    entrega: getSelText($('entrega-select')) || '—',
-
-    cristal: dash($('cristal')?.value),
-    distFocal: getSelText($('distancia_focal')) || '—',
-    armazonNum: dash($('numero_armazon')?.value),
-    armazonDet: dash($('armazon_detalle')?.value),
-
-    od_esf: getSelText($('od_esf')) || '0.00',
-    od_cil: getSelText($('od_cil')) || '0.00',
-    od_eje: ($('od_eje')?.value || '').trim() || '0',
-
-    oi_esf: getSelText($('oi_esf')) || '0.00',
-    oi_cil: getSelText($('oi_cil')) || '0.00',
-    oi_eje: ($('oi_eje')?.value || '').trim() || '0',
-
-    dnp: dash($('dnp')?.value),
-    add: dash($('add')?.value),
-    dr:  dash($('dr')?.value),
-
-    precioCristal: money($('precio_cristal')?.value || 0),
-    precioArmazon: money($('precio_armazon')?.value || 0),
-    obraSocial:    money($('importe_obra_social')?.value || 0),
-    sena:          money($('sena')?.value || 0),
-    saldo:         money($('saldo')?.value || 0),
-    total:         money($('total')?.value || 0),
-
-    formaPago: dash($('forma_pago')?.value || '')
+  const getSelText = (el) => {
+    if (!el) return '';
+    if (el.tagName === 'SELECT') {
+      const o = el.options[el.selectedIndex];
+      return (o?.textContent || o?.value || '').trim();
+    }
+    return (el.value || '').trim();
   };
-}
 
-// ===== HTML del ticket =====
-function renderTicket(d) {
-  return `
+  function normNumberLike(v) {
+    if (v == null) return 0;
+    const s = String(v).replace(/[^\d.,-]/g, '').replace(/\./g, '').replace(',', '.');
+    const n = parseFloat(s);
+    return isNaN(n) ? 0 : n;
+  }
+  function money(v) {
+    const n = Math.max(0, normNumberLike(v));
+    return '$ ' + n.toLocaleString('es-AR', { maximumFractionDigits: 0 });
+  }
+
+  // fechas
+  function parseFechaLoose(str) {
+    if (!str) return null;
+    if (str instanceof Date) return isNaN(str) ? null : str;
+    const s = String(str).trim();
+    let m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+    if (m) {
+      const dd = +m[1], mm = +m[2], yyyy = m[3].length === 2 ? +('20' + m[3]) : +m[3];
+      const d = new Date(yyyy, mm - 1, dd);
+      return isNaN(d) ? null : d;
+    }
+    m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (m) return new Date(+m[1], +m[2] - 1, +m[3]);
+    const d2 = new Date(s);
+    return isNaN(d2) ? null : d2;
+  }
+  function ddmmyyyy(d) {
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const yy = d.getFullYear();
+    return `${dd}/${mm}/${yy}`;
+  }
+  function safeDDMMYYYY(inputEl, fallback = '') {
+    const raw = (inputEl?.value || '').trim() || fallback;
+    const d = parseFechaLoose(raw);
+    return d ? ddmmyyyy(d) : (raw || '');
+  }
+
+  const dash = (v) => (v && String(v).trim()) ? String(v).trim() : '—';
+
+  // ===== Leer formulario =====
+  function collectForm() {
+    return {
+      numero: dash($('numero_trabajo')?.value),
+      cliente: dash($('nombre')?.value),
+      dni: dash($('dni')?.value),
+      tel: dash($('telefono')?.value),
+
+      fecha:  safeDDMMYYYY($('fecha')),
+      retira: safeDDMMYYYY($('fecha_retira')),
+      entrega: getSelText($('entrega-select')) || '—',
+
+      cristal: dash($('cristal')?.value),
+      distFocal: getSelText($('distancia_focal')) || '—',
+      armazonNum: dash($('numero_armazon')?.value),
+      armazonDet: dash($('armazon_detalle')?.value),
+
+      od_esf: getSelText($('od_esf')) || '0.00',
+      od_cil: getSelText($('od_cil')) || '0.00',
+      od_eje: ($('od_eje')?.value || '').trim() || '0',
+
+      oi_esf: getSelText($('oi_esf')) || '0.00',
+      oi_cil: getSelText($('oi_cil')) || '0.00',
+      oi_eje: ($('oi_eje')?.value || '').trim() || '0',
+
+      dnp: dash($('dnp')?.value),
+      add: dash($('add')?.value),
+      dr:  dash($('dr')?.value),
+
+      precioCristal: money($('precio_cristal')?.value || 0),
+      precioArmazon: money($('precio_armazon')?.value || 0),
+      obraSocial:    money($('importe_obra_social')?.value || 0),
+      sena:          money($('sena')?.value || 0),
+      saldo:         money($('saldo')?.value || 0),
+      total:         money($('total')?.value || 0),
+
+      formaPago: dash($('forma_pago')?.value || '')
+    };
+  }
+
+  // ===== HTML del ticket =====
+  function renderTicket(d) {
+    return `
 <div class="ticket">
   <header class="hdr">
     <div class="brand">
@@ -168,97 +169,113 @@ function renderTicket(d) {
     <div class="total-line">TOTAL: <span class="mono">${d.total}</span></div>
   </section>
 </div>`;
-}
-
-// ===== Imprimir en IFRAME oculto (c/ JsBarcode) =====
-function printInIframe(htmlInner, numero) {
-  const css = `
-  <style>
-    @page { size: ${PAGE_W_MM}mm ${PAGE_H_MM}mm; margin: ${PAGE_MARGIN_MM}mm; }
-    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-
-    html, body { background:#fff; }
-    body { margin:0; font: 9.5pt/1.25 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; color:#111; }
-
-    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
-    .ticket { width: ${PAGE_W_MM - PAGE_MARGIN_MM*2}mm; box-sizing: border-box; margin:0; }
-
-    /* Cabecera en 3 columnas: brand | barcode | nro */
-    .hdr { display:grid; grid-template-columns: 1fr ${BAR_W_MM}mm 1fr; align-items:flex-start; column-gap: 4mm; margin-bottom: 2.5mm; }
-    .title { font-weight:700; font-size: 11pt; }
-    .sub { color:#666; font-size: 8.5pt; margin-top: 0.5mm; }
-    .nro { justify-self: end; }
-    .nro .lbl { font-size:8pt; color:#666; }
-    .nro .val { font-size: 12pt; font-weight: 700; }
-
-    /* Barcode centrado, 55×8 mm */
-    .barwrap { width:${BAR_W_MM}mm; height:${BAR_H_MM}mm; display:flex; align-items:center; justify-content:center; }
-    .barwrap svg { width:${BAR_W_MM}mm; height:${BAR_H_MM}mm; }
-
-    .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap: 2mm 4mm; }
-    .kv { display:grid; grid-template-columns: 24mm 1fr; column-gap: 2mm; align-items: baseline; }
-    .kv .k { color:#555; font-size: 8.5pt; }
-    .kv .v { font-weight: 600; min-height: 10pt; }
-
-    .dtl { margin-top: 1mm; }
-
-    .grades { display:grid; grid-template-columns: 1fr 1fr; gap: 3mm; margin: 2mm 0; }
-    .box { border: 1px solid #d8dbe0; border-radius: 1mm; overflow:hidden; }
-    .box-t { background:#f2f4f7; padding: 1mm 2mm; font-weight:700; font-size:9pt; }
-    .tbl { width: 100%; border-collapse: collapse; }
-    .tbl th, .tbl td { border-top: 1px solid #e5e7eb; padding: 1mm 1.5mm; text-align: center; font-size: 9pt; }
-
-    .totals { margin-top: 1mm; display:grid; grid-template-columns: 1fr 1fr; gap: 1mm 4mm; }
-    .totals .kv .k { font-size: 8.5pt; }
-    .totals .kv .v { font-weight: 700; }
-    .total-line { grid-column: 1 / -1; text-align:right; font-weight:800; font-size: 12pt; border-top: 1px dashed #bbb; padding-top: 1.5mm; margin-top: .5mm; }
-  </style>`;
-
-  const ifr = document.createElement('iframe');
-  Object.assign(ifr.style, {position:'fixed',right:'0',bottom:'0',width:'0',height:'0',border:'0',visibility:'hidden'});
-  document.body.appendChild(ifr);
-
-  const doc = ifr.contentDocument || ifr.contentWindow.document;
-  doc.open();
-  doc.write(`<!doctype html><html><head><meta charset="utf-8">${css}</head><body>${htmlInner}</body></html>`);
-  doc.close();
-
-  const w = ifr.contentWindow;
-
-  const render = () => {
-    try {
-      const svg = doc.getElementById('barcode');
-      if (w.JsBarcode && svg) {
-        w.JsBarcode(svg, String(numero || ''), {
-          format: 'CODE128',
-          displayValue: false,
-          margin: 0,
-          height: 40
-        });
-      }
-    } catch (_) {}
-    const cleanup = () => { setTimeout(()=>{ try { document.body.removeChild(ifr); } catch{} }, 100); };
-    w.addEventListener?.('afterprint', cleanup);
-    setTimeout(() => { try { w.focus(); w.print(); } catch {} setTimeout(cleanup, 500); }, 50);
-  };
-
-  if (w.JsBarcode) {
-    render();
-  } else {
-    const s = doc.createElement('script');
-    s.src = 'https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js';
-    s.onload = render;
-    s.onerror = render;
-    doc.head.appendChild(s);
   }
-}
 
-// ===== API pública =====
-export function buildAndPrintFromForm() {
-  const data = collectForm();
-  const html = renderTicket(data);
-  printInIframe(html, data.numero);
-}
+  // ===== Imprimir en IFRAME (con JsBarcode) =====
+  function printInIframe(htmlInner, numero) {
+    const css = `
+    <style>
+      /* Página vertical sin márgenes del documento */
+      @page { size: ${PAGE_W_MM}mm ${PAGE_H_MM}mm; margin: 0; }
 
-window.__buildPrintArea = buildAndPrintFromForm;
-window.__renderAndPrint = (html) => printInIframe(html, '');
+      * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      html, body { background:#fff; }
+      /* ¡Nada de márgenes! */
+      html, body { margin:0 !important; padding:0 !important; }
+
+      body {
+        font: 9.5pt/1.25 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+        color:#111;
+      }
+
+      .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
+
+      /* Ticket pegado a la esquina superior-izquierda del área imprimible */
+      .ticket {
+        width: ${PAGE_W_MM}mm;
+        height: ${PAGE_H_MM}mm;
+        box-sizing: border-box;
+        position: fixed;   /* clave */
+        top: 0;            /* clave */
+        left: 0;           /* clave */
+        margin: 0;
+      }
+
+      /* Cabecera: brand | barcode | nro */
+      .hdr { display:grid; grid-template-columns: 1fr ${BAR_W_MM}mm 1fr; align-items:flex-start; column-gap: 4mm; margin-bottom: 2.5mm; }
+      .title { font-weight:700; font-size: 11pt; }
+      .sub { color:#666; font-size: 8.5pt; margin-top: 0.5mm; }
+      .nro { justify-self: end; }
+      .nro .lbl { font-size:8pt; color:#666; }
+      .nro .val { font-size: 12pt; font-weight: 700; }
+
+      /* Código de barras 55×8 mm */
+      .barwrap { width:${BAR_W_MM}mm; height:${BAR_H_MM}mm; display:flex; align-items:center; justify-content:center; }
+      .barwrap svg { width:${BAR_W_MM}mm; height:${BAR_H_MM}mm; }
+
+      .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap: 2mm 4mm; }
+      .kv { display:grid; grid-template-columns: 24mm 1fr; column-gap: 2mm; align-items: baseline; }
+      .kv .k { color:#555; font-size: 8.5pt; }
+      .kv .v { font-weight: 600; min-height: 10pt; }
+
+      .dtl { margin-top: 1mm; }
+
+      .grades { display:grid; grid-template-columns: 1fr 1fr; gap: 3mm; margin: 2mm 0; }
+      .box { border: 1px solid #d8dbe0; border-radius: 1mm; overflow:hidden; }
+      .box-t { background:#f2f4f7; padding: 1mm 2mm; font-weight:700; font-size:9pt; }
+      .tbl { width: 100%; border-collapse: collapse; }
+      .tbl th, .tbl td { border-top: 1px solid #e5e7eb; padding: 1mm 1.5mm; text-align: center; font-size: 9pt; }
+
+      .totals { margin-top: 1mm; display:grid; grid-template-columns: 1fr 1fr; gap: 1mm 4mm; }
+      .totals .kv .k { font-size: 8.5pt; }
+      .totals .kv .v { font-weight: 700; }
+      .total-line { grid-column: 1 / -1; text-align:right; font-weight:800; font-size: 12pt; border-top: 1px dashed #bbb; padding-top: 1.5mm; margin-top: .5mm; }
+    </style>`;
+
+    const ifr = document.createElement('iframe');
+    Object.assign(ifr.style, { position: 'fixed', right: '0', bottom: '0', width: '0', height: '0', border: '0', visibility: 'hidden' });
+    document.body.appendChild(ifr);
+
+    const doc = ifr.contentDocument || ifr.contentWindow.document;
+    doc.open();
+    doc.write(`<!doctype html><html><head><meta charset="utf-8">${css}</head><body>${htmlInner}</body></html>`);
+    doc.close();
+
+    const w = ifr.contentWindow;
+
+    const render = () => {
+      try {
+        const svg = doc.getElementById('barcode');
+        if (w.JsBarcode && svg) {
+          w.JsBarcode(svg, String(numero || ''), {
+            format: 'CODE128',
+            displayValue: false,
+            margin: 0,
+            height: 40 // el CSS fija el tamaño físico (mm)
+          });
+        }
+      } catch (_) {}
+
+      const cleanup = () => { setTimeout(() => { try { document.body.removeChild(ifr); } catch {} }, 100); };
+      w.addEventListener?.('afterprint', cleanup);
+      setTimeout(() => { try { w.focus(); w.print(); } catch {} setTimeout(cleanup, 500); }, 50);
+    };
+
+    if (w.JsBarcode) {
+      render();
+    } else {
+      const s = doc.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js';
+      s.onload = render;
+      s.onerror = render; // imprime igual aunque no cargue
+      doc.head.appendChild(s);
+    }
+  }
+
+  // ===== API global que usa el botón "Imprimir" =====
+  window.__buildPrintArea = function () {
+    const data = collectForm();
+    const html = renderTicket(data);
+    printInIframe(html, data.numero);
+  };
+})();
