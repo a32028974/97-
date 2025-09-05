@@ -351,7 +351,7 @@ function setupCalculos(){
   updateTotals();
 }
 
-// ===== Prefill desde el historial =====
+// ===== Prefill desde el historial (robusto) =====
 function doPrefillDesdeHistorial(){
   let raw = null, data = null;
   try { raw = sessionStorage.getItem('prefill_trabajo'); } catch {}
@@ -360,6 +360,7 @@ function doPrefillDesdeHistorial(){
   try { sessionStorage.removeItem('prefill_trabajo'); } catch {}
   if (!data) return;
 
+  // ---- utils básicos
   const set = (id, val) => { const el = document.getElementById(id); if (el != null) el.value = val ?? ''; };
   const setSelectIfExists = (id, val) => {
     const el = document.getElementById(id); if (!el) return;
@@ -379,16 +380,47 @@ function doPrefillDesdeHistorial(){
     const yy = m[3].length===2 ? ('20'+m[3]) : m[3];
     return `${yy}-${mm}-${dd}`;
   };
-  // convierte a "+x.xx"/"-x.xx"/"0.00" (lo que esperan los <select>)
-  const toSigned2 = (val) => {
-    if (val === null || val === undefined || val === '') return '';
-    const n = parseFloat(String(val).replace(',', '.'));
-    if (isNaN(n)) return '';
-    if (Math.abs(n) < 1e-9) return '0.00';
-    const t = Math.abs(n).toFixed(2);
-    return n > 0 ? `+${t}` : `-${t}`;
-  };
-  // toma el primer campo existente entre varios alias
+
+  // ---- Selecciona opción por NÚMERO (tolerante)
+  function setSelectGrad(id, val){
+    const sel = document.getElementById(id);
+    if (!sel || val === null || val === undefined || val === '') return;
+
+    let n = parseFloat(String(val).replace(',', '.'));
+    if (isNaN(n)) {
+      // último intento: quizá vino como "+1.25" exacto
+      const vtxt = String(val).trim();
+      const opt = Array.from(sel.options).find(o => o.value === vtxt || o.textContent === vtxt);
+      if (opt) sel.value = opt.value;
+      return;
+    }
+
+    // redondeo al paso 0.25 por las dudas
+    n = Math.round(n * 4) / 4;
+
+    // 1) intentar por texto exacto (+x.xx / -x.xx / 0.00)
+    const signed =
+      Math.abs(n) < 1e-9 ? '0.00' :
+      (n > 0 ? `+${Math.abs(n).toFixed(2)}` : `-${Math.abs(n).toFixed(2)}`);
+    const candidates = [signed, n.toFixed(2), String(n)];
+    for (const c of candidates){
+      const opt = Array.from(sel.options).find(o => o.value === c || o.textContent === c);
+      if (opt){ sel.value = opt.value; return; }
+    }
+
+    // 2) fallback: por cercanía numérica
+    let bestIdx = -1, bestDiff = Infinity;
+    for (let i=0;i<sel.options.length;i++){
+      const ov = parseFloat(sel.options[i].value.replace('+',''));
+      if (isNaN(ov)) continue;
+      const diff = Math.abs(ov - n);
+      if (diff < 1e-6){ bestIdx = i; break; }
+      if (diff < bestDiff){ bestDiff = diff; bestIdx = i; }
+    }
+    if (bestIdx >= 0) sel.selectedIndex = bestIdx;
+  }
+
+  // ---- tomar el primer campo presente entre varios alias
   const pick = (...keys) => {
     for (const k of keys) {
       if (k in data && data[k] !== '' && data[k] !== null && data[k] !== undefined) return data[k];
@@ -400,7 +432,7 @@ function doPrefillDesdeHistorial(){
   const numero = pick('numero','num','nro','n_trabajo');
   set('numero_trabajo', numero);
   const hidden = document.getElementById('numero_trabajo_hidden'); if (hidden) hidden.value = numero;
-  set('fecha', pick('fecha'));
+  set('fecha', pick('fecha')); // tu input es de texto
   set('fecha_retira', ddmmyy_to_yyyy_mm_dd(pick('retira','prometida','fecha_prometida')) || pick('retira','prometida','fecha_prometida') || '');
 
   // ------- Datos básicos
@@ -420,15 +452,16 @@ function doPrefillDesdeHistorial(){
   set('precio_otro',     pick('precio_otro'));
   set('forma_pago',      pick('forma_pago','pago'));
 
-  // ------- Graduaciones (con alias)
-  setSelectIfExists('od_esf', toSigned2(pick('od_esf','OD_ESF','OD ESF','odEsf','esf_od','OD_ESFERA','OD ESFERA')));
-  setSelectIfExists('od_cil', toSigned2(pick('od_cil','OD_CIL','OD CIL','odCil','cil_od','OD_CILINDRO','OD CILINDRO')));
+  // ------- Graduaciones (usa setSelectGrad numérico)
+  setSelectGrad('od_esf', pick('od_esf','OD_ESF','OD ESF','odEsf','esf_od','OD_ESFERA','OD ESFERA'));
+  setSelectGrad('od_cil', pick('od_cil','OD_CIL','OD CIL','odCil','cil_od','OD_CILINDRO','OD CILINDRO'));
   set('od_eje', (pick('od_eje','OD_EJE','OD EJE','odEje','eje_od') ?? '').toString());
 
-  setSelectIfExists('oi_esf', toSigned2(pick('oi_esf','OI_ESF','OI ESF','oiEsf','esf_oi','OI_ESFERA','OI ESFERA')));
-  setSelectIfExists('oi_cil', toSigned2(pick('oi_cil','OI_CIL','OI CIL','oiCil','cil_oi','OI_CILINDRO','OI CILINDRO')));
+  setSelectGrad('oi_esf', pick('oi_esf','OI_ESF','OI ESF','oiEsf','esf_oi','OI_ESFERA','OI ESFERA'));
+  setSelectGrad('oi_cil', pick('oi_cil','OI_CIL','OI CIL','oiCil','cil_oi','OI_CILINDRO','OI CILINDRO'));
   set('oi_eje', (pick('oi_eje','OI_EJE','OI EJE','oiEje','eje_oi') ?? '').toString());
 
+  // Otros
   set('add', (pick('add','ADD') ?? '').toString());
   set('dnp', (pick('dnp','DNP') ?? '').toString());
 
