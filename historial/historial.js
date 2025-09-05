@@ -1,4 +1,4 @@
-// /historial/historial.js — v6 (live search + 30 últimos + “Cargar”)
+// /historial/historial.js — v7 (live search + 30 últimos + “Cargar” + fechas dd/mm/aa)
 import { API_URL as BASE } from '../js/api.js';
 const API_URL = BASE;
 
@@ -17,7 +17,7 @@ let page = 1;
 // ---------- normalización ----------
 function normalizeRows(list){
   if (!Array.isArray(list)) return [];
-  return list.map(r=>({
+  return list.map(r=>(Object.freeze({
     estado:      r.estado ?? '',
     fecha:       r.fecha ?? '',
     retira:      r.retira ?? '',
@@ -31,7 +31,39 @@ function normalizeRows(list){
     vendedor:    r.vendedor ?? '',
     telefono:    r.telefono ?? '',
     pdf:         r.pdf ?? ''
-  }));
+  })));
+}
+
+// ---------- formato de fechas (dd/mm/aa para mostrar) ----------
+function toDate(val){
+  if (!val) return null;
+  if (val instanceof Date) return isNaN(val) ? null : val;
+
+  const s = String(val).trim();
+
+  // dd/mm/yy o dd/mm/yyyy
+  const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+  if (m){
+    const dd = m[1].padStart(2,'0');
+    const mm = m[2].padStart(2,'0');
+    const yyyy = m[3].length === 2 ? ('20'+m[3]) : m[3];
+    const d = new Date(Number(yyyy), Number(mm)-1, Number(dd));
+    return isNaN(d) ? null : d;
+  }
+
+  // ISO u otros strings parseables por Date
+  const d2 = new Date(s);
+  return isNaN(d2) ? null : d2;
+}
+function fmtDDMMYY(d){
+  const dd = String(d.getDate()).padStart(2,'0');
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  const yy = String(d.getFullYear()).slice(-2);
+  return `${dd}/${mm}/${yy}`;
+}
+function formatFecha(val){
+  const d = toDate(val);
+  return d ? fmtDDMMYY(d) : (val ?? '');
 }
 
 // ---------- render ----------
@@ -58,8 +90,8 @@ function renderPage(){
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${r.estado}</td>
-      <td>${r.fecha}</td>
-      <td>${r.retira}</td>
+      <td>${formatFecha(r.fecha)}</td>
+      <td>${formatFecha(r.retira)}</td>
       <td style="font-variant-numeric:tabular-nums">${r.numero}</td>
       <td>${r.dni}</td>
       <td>${r.nombre}</td>
