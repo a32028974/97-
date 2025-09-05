@@ -1,5 +1,4 @@
-// /RECETAS/js/main.js — v2025-09-05 (full)
-// UI general + progreso + fechas + cámara + búsquedas + totales + graduaciones + prefill + historial mini
+// /js/main.js — v2025-09-05 (todo en uno: UI + progreso + fechas + graduaciones + imprimir/guardar)
 
 // ===== Imports =====
 import './print.js';
@@ -9,12 +8,12 @@ import { cargarFechaHoy } from './fechaHoy.js';
 import { buscarNombrePorDNI } from './buscarNombre.js';
 import { buscarArmazonPorNumero } from './buscarArmazon.js';
 import { guardarTrabajo } from './guardar.js';
-import { initPhotoPack } from './fotoPack.js'; // ojo: P mayúscula
-import { API_URL, withParams, apiGet } from './api.js'; // para historial mini
+import { initPhotoPack } from './fotoPack.js';
 
 // ===== Helpers DOM =====
 const $  = (id)  => document.getElementById(id);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+const isSelect = (el) => el && el.tagName === 'SELECT';
 
 // =========================================================================
 // PROGRESO (overlay)
@@ -44,6 +43,7 @@ function getOverlayHost() {
 function createProgressPanel(steps = PROGRESS_STEPS) {
   const host = getOverlayHost();
   if (!host.dataset.prevHTML) host.dataset.prevHTML = host.innerHTML;
+  host.hidden = false;
   host.style.display = 'flex';
   host.innerHTML = `
     <div class="progress-panel" role="dialog" aria-label="Guardando">
@@ -61,6 +61,7 @@ function createProgressPanel(steps = PROGRESS_STEPS) {
 function hideProgressPanel() {
   const host = getOverlayHost();
   host.style.display = 'none';
+  host.hidden = true;
   if (host.dataset.prevHTML !== undefined) {
     host.innerHTML = host.dataset.prevHTML;
     delete host.dataset.prevHTML;
@@ -111,7 +112,7 @@ function progressAPI(steps = PROGRESS_STEPS) {
 // =========================================================================
 function parseFechaDDMMYY(str){
   if(!str) return new Date();
-  const [d,m,a] = String(str).split('/');
+  const [d,m,a] = str.split(/[\/\-]/);
   const dd = parseInt(d||'0',10), mm = parseInt(m||'1',10);
   let yy = parseInt(a||'0',10);
   if ((a||'').length===2) yy = 2000 + yy;
@@ -130,10 +131,11 @@ function sumarDias(base, dias){
 function recalcularFechaRetiro(){
   const enc = $('fecha');
   const out = $('fecha_retira');
-  const sel = $('entrega-select'); // 7, 3, 15, etc.
+  const sel = $('entrega-select');
   if (!enc || !out || !sel) return;
+
   const base = parseFechaDDMMYY(enc.value || '');
-  const dias = parseInt(sel.value, 10) || 0;
+  const dias = parseInt(sel.value, 10) || 0; // 7, 3, 15
   out.value = fmtISO(sumarDias(base, dias)); // <input type="date">
 }
 
@@ -147,7 +149,7 @@ const generarNumeroTrabajoDesdeTelefono = () => {
 };
 
 // =========================================================================
-// Graduaciones (EJE + inputs y/o selects para ESF/CIL)
+/** Graduaciones (EJE + inputs y/o selects para ESF/CIL) */
 // =========================================================================
 function clamp(n, min, max){ return Math.min(Math.max(n, min), max); }
 function snapToStep(n, step){ return Math.round(n / step) * step; }
@@ -158,8 +160,7 @@ function sanitizeGradual(el, allowSigns = true){
   v = v.replace(/,/g, '').replace(/[^\d+.\-]/g, '');
   if (!allowSigns) v = v.replace(/[+-]/g, '');
   else v = v.replace(/(?!^)[+-]/g, '');
-  const parts = v.split('.');
-  if (parts.length > 2) v = parts[0] + '.' + parts.slice(1).join('');
+  const parts = v.split('.'); if (parts.length > 2) v = parts[0] + '.' + parts.slice(1).join('');
   el.value = v;
 }
 function validateGradual(el){
@@ -219,13 +220,11 @@ function setupGraduacionesSelects() {
     o.textContent = label ?? val;
     sel.appendChild(o);
   };
-
   const fmt = (v, showSign) => {
     let txt = Math.abs(v) < 1e-9 ? '0.00' : v.toFixed(2);
     if (showSign && v > 0) txt = '+' + txt;
     return txt;
   };
-
   const fillCentered = (sel, maxAbs, step, showSign = false) => {
     if (!sel || sel.tagName !== 'SELECT') return;
     sel.innerHTML = '';
@@ -242,17 +241,17 @@ function setupGraduacionesSelects() {
   };
 
   // ESF: ±30 (0.25) con signo
-  fillCentered(document.getElementById('od_esf'), 30, 0.25, true);
-  fillCentered(document.getElementById('oi_esf'), 30, 0.25, true);
+  fillCentered($('od_esf'), 30, 0.25, true);
+  fillCentered($('oi_esf'), 30, 0.25, true);
 
   // CIL: ±8 (0.25) con signo
-  fillCentered(document.getElementById('od_cil'), 8, 0.25, true);
-  fillCentered(document.getElementById('oi_cil'), 8, 0.25, true);
+  fillCentered($('od_cil'), 8, 0.25, true);
+  fillCentered($('oi_cil'), 8, 0.25, true);
 
   // validar EJE cuando cambia CIL
   [['od_cil','od_eje'], ['oi_cil','oi_eje']].forEach(([cilId, ejeId]) => {
-    const cil = document.getElementById(cilId);
-    const eje = document.getElementById(ejeId);
+    const cil = $(cilId);
+    const eje = $(ejeId);
     if (cil && eje) cil.addEventListener('change', () => checkEjeRequerido(cil, eje));
   });
 }
@@ -277,7 +276,7 @@ function setupGraduacionesInputs(){
     if (!el) return;
     el.addEventListener('input', ()=>{
       sanitizeEje(el);
-      checkEjeRequerido(id==='od_eje' ? $('od_cil') : 'oi_cil', el);
+      checkEjeRequerido(id==='od_eje' ? $('od_cil') : $('oi_cil'), el);
     });
     el.addEventListener('blur',  ()=> validateEje(el));
   });
@@ -285,7 +284,7 @@ function setupGraduacionesInputs(){
     const cil = $(id);
     const eje = $(id==='od_cil' ? 'od_eje' : 'oi_eje');
     if (!cil || !eje) return;
-    const h = ()=> checkEjeRequerido(cil, eje);
+    const h = ()=> checkEjeRequerido(cil, $(eje));
     cil.addEventListener('input', h);
     cil.addEventListener('blur',  h);
   });
@@ -351,7 +350,9 @@ function setupCalculos(){
   updateTotals();
 }
 
-// ===== Prefill desde el historial (robusto) =====
+// =========================================================================
+// Prefill desde historial (robusto y tolerante)
+// =========================================================================
 function doPrefillDesdeHistorial(){
   let raw = null, data = null;
   try { raw = sessionStorage.getItem('prefill_trabajo'); } catch {}
@@ -360,7 +361,6 @@ function doPrefillDesdeHistorial(){
   try { sessionStorage.removeItem('prefill_trabajo'); } catch {}
   if (!data) return;
 
-  // ---- utils básicos
   const set = (id, val) => { const el = document.getElementById(id); if (el != null) el.value = val ?? ''; };
   const setSelectIfExists = (id, val) => {
     const el = document.getElementById(id); if (!el) return;
@@ -380,35 +380,25 @@ function doPrefillDesdeHistorial(){
     const yy = m[3].length===2 ? ('20'+m[3]) : m[3];
     return `${yy}-${mm}-${dd}`;
   };
-
-  // ---- Selecciona opción por NÚMERO (tolerante)
+  // match por número tolerante (0.25)
   function setSelectGrad(id, val){
     const sel = document.getElementById(id);
     if (!sel || val === null || val === undefined || val === '') return;
-
     let n = parseFloat(String(val).replace(',', '.'));
     if (isNaN(n)) {
-      // último intento: quizá vino como "+1.25" exacto
       const vtxt = String(val).trim();
       const opt = Array.from(sel.options).find(o => o.value === vtxt || o.textContent === vtxt);
       if (opt) sel.value = opt.value;
       return;
     }
-
-    // redondeo al paso 0.25 por las dudas
     n = Math.round(n * 4) / 4;
-
-    // 1) intentar por texto exacto (+x.xx / -x.xx / 0.00)
-    const signed =
-      Math.abs(n) < 1e-9 ? '0.00' :
-      (n > 0 ? `+${Math.abs(n).toFixed(2)}` : `-${Math.abs(n).toFixed(2)}`);
+    const signed = Math.abs(n) < 1e-9 ? '0.00' : (n > 0 ? `+${Math.abs(n).toFixed(2)}` : `-${Math.abs(n).toFixed(2)}`);
     const candidates = [signed, n.toFixed(2), String(n)];
     for (const c of candidates){
       const opt = Array.from(sel.options).find(o => o.value === c || o.textContent === c);
       if (opt){ sel.value = opt.value; return; }
     }
-
-    // 2) fallback: por cercanía numérica
+    // fallback por cercanía
     let bestIdx = -1, bestDiff = Infinity;
     for (let i=0;i<sel.options.length;i++){
       const ov = parseFloat(sel.options[i].value.replace('+',''));
@@ -419,57 +409,38 @@ function doPrefillDesdeHistorial(){
     }
     if (bestIdx >= 0) sel.selectedIndex = bestIdx;
   }
+  const pick = (...keys) => { for (const k of keys) if (k in data && data[k] !== '' && data[k] != null) return data[k]; return ''; };
 
-  // ---- tomar el primer campo presente entre varios alias
-  const pick = (...keys) => {
-    for (const k of keys) {
-      if (k in data && data[k] !== '' && data[k] !== null && data[k] !== undefined) return data[k];
-    }
-    return '';
-  };
+  set('numero_trabajo', pick('numero','num','nro','n_trabajo'));
+  const hidden = $('numero_trabajo_hidden'); if (hidden) hidden.value = $('numero_trabajo')?.value || '';
 
-  // ------- Identificación y fechas
-  const numero = pick('numero','num','nro','n_trabajo');
-  set('numero_trabajo', numero);
-  const hidden = document.getElementById('numero_trabajo_hidden'); if (hidden) hidden.value = numero;
-  set('fecha', pick('fecha')); // tu input es de texto
+  set('fecha', pick('fecha'));
   set('fecha_retira', ddmmyy_to_yyyy_mm_dd(pick('retira','prometida','fecha_prometida')) || pick('retira','prometida','fecha_prometida') || '');
 
-  // ------- Datos básicos
-  set('dni',        pick('dni','documento'));
-  set('nombre',     pick('nombre','cliente'));
-  set('telefono',   pick('telefono','tel'));
-  set('cristal',    pick('cristal','tipo_cristal'));
+  set('dni', pick('dni','documento'));
+  set('nombre', pick('nombre','cliente'));
+  set('telefono', pick('telefono','tel'));
+  set('cristal', pick('cristal','tipo_cristal'));
   set('numero_armazon', pick('n_armazon','numero_armazon','n_arma','arma_n'));
   set('armazon_detalle', pick('det_armazon','armazon','detalle','detalle_armazon'));
-  set('vendedor',   pick('vendedor'));
+  set('vendedor', pick('vendedor'));
   setSelectIfExists('distancia_focal', pick('dist_focal','distancia_focal'));
+  set('obra_social', pick('obra_social','os'));
 
-  // ------- Montos / otros
-  set('obra_social',     pick('obra_social','os'));
-  set('precio_cristal',  pick('precio_cristal'));
-  set('precio_armazon',  pick('precio_armazon'));
-  set('precio_otro',     pick('precio_otro'));
-  set('forma_pago',      pick('forma_pago','pago'));
-
-  // ------- Graduaciones (usa setSelectGrad numérico)
-  setSelectGrad('od_esf', pick('od_esf','OD_ESF','OD ESF','odEsf','esf_od','OD_ESFERA','OD ESFERA'));
-  setSelectGrad('od_cil', pick('od_cil','OD_CIL','OD CIL','odCil','cil_od','OD_CILINDRO','OD CILINDRO'));
+  setSelectGrad('od_esf', pick('od_esf','OD_ESF','OD ESF','odEsf','esf_od','OD_ESFERA'));
+  setSelectGrad('od_cil', pick('od_cil','OD_CIL','OD CIL','odCil','cil_od','OD_CILINDRO'));
   set('od_eje', (pick('od_eje','OD_EJE','OD EJE','odEje','eje_od') ?? '').toString());
 
-  setSelectGrad('oi_esf', pick('oi_esf','OI_ESF','OI ESF','oiEsf','esf_oi','OI_ESFERA','OI ESFERA'));
-  setSelectGrad('oi_cil', pick('oi_cil','OI_CIL','OI CIL','oiCil','cil_oi','OI_CILINDRO','OI CILINDRO'));
+  setSelectGrad('oi_esf', pick('oi_esf','OI_ESF','OI ESF','oiEsf','esf_oi','OI_ESFERA'));
+  setSelectGrad('oi_cil', pick('oi_cil','OI_CIL','OI CIL','oiCil','cil_oi','OI_CILINDRO'));
   set('oi_eje', (pick('oi_eje','OI_EJE','OI EJE','oiEje','eje_oi') ?? '').toString());
 
-  // Otros
   set('add', (pick('add','ADD') ?? '').toString());
   set('dnp', (pick('dnp','DNP') ?? '').toString());
 
-  // refrescos
   [
     'numero_trabajo','fecha','fecha_retira','dni','nombre','telefono','cristal',
     'numero_armazon','armazon_detalle','vendedor','obra_social',
-    'precio_cristal','precio_armazon','precio_otro','forma_pago',
     'od_esf','od_cil','od_eje','oi_esf','oi_cil','oi_eje','add','dnp','distancia_focal'
   ].forEach(id=>{
     const el = document.getElementById(id);
@@ -478,69 +449,11 @@ function doPrefillDesdeHistorial(){
 
   if (typeof window.__updateTotals === 'function') window.__updateTotals();
 
-  const foco = document.getElementById('telefono') || document.getElementById('cristal');
-  if (foco) foco.focus();
-}
+  const foco = $('telefono') || $('cristal'); if (foco) foco.focus();
 
-// =========================================================================
-// Mini-historial (opcional en index)
-// =========================================================================
-function renderHistorial(items = []) {
-  const host = $('historial');
-  if (!host) return;
-  if (!Array.isArray(items) || items.length === 0) {
-    host.innerHTML = '<em class="muted">Sin resultados</em>';
-    return;
-  }
-  host.innerHTML = items.map(it => {
-    const n  = (it.numero || it.num || it.nro || it.n_trabajo || '').toString().trim();
-    const nm = (it.nombre || it.cliente || '').toString().trim();
-    const cr = (it.cristal || '').toString().trim();
-    const ar = (it.armazon || it.detalle || '').toString().trim();
-    return `<div>🧾 <strong>${n || '—'}</strong> — ${nm || 'SIN NOMBRE'} — <span>${cr || '—'}</span> — <span>${ar || '—'}</span></div>`;
-  }).join('');
-}
-async function tryHist(paramsList){
-  for (const p of paramsList){
-    try {
-      const url = withParams(API_URL, p);
-      const data = await apiGet(url);
-      if (Array.isArray(data)) return data;
-    } catch {}
-  }
-  return [];
-}
-async function cargarUltimosTrabajos(limit = 15) {
-  const data = await tryHist([
-    { histUltimos: limit },
-    { hist: 1, limit }
-  ]);
-  if (data.length) renderHistorial(data);
-}
-function initHistorialUI() {
-  const q   = $('hist-q');
-  const lim = $('hist-limit');
-  const btn = $('hist-buscar');
-
-  if (lim) lim.value = '15';
-  cargarUltimosTrabajos(15);
-
-  if (btn) {
-    btn.addEventListener('click', async () => {
-      const limit = parseInt(lim?.value || '100', 10) || 100;
-      const query = (q?.value || '').trim();
-      const data = await tryHist([
-        { histBuscar: query, limit },
-        { hist: 1, limit, q: query }
-      ]);
-      renderHistorial(data);
-    });
-  }
-
-  if (q) {
-    q.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') { e.preventDefault(); btn?.click(); }
-    });
+  // aviso amistoso si venimos del historial
+  if (location.hash === '#prefill' && window.Swal) {
+    Swal.fire({toast:true, position:'top', timer:1500, showConfirmButton:false, icon:'info', title:'Datos cargados desde historial'});
   }
 }
 
@@ -553,9 +466,11 @@ function buildPrintArea(){
   __PRINT_LOCK = true;
   try {
     if (typeof window.__buildPrintArea === 'function') {
-      window.__buildPrintArea();   // esto ya llama a renderAndPrint() (único window.print)
+      window.__buildPrintArea();   // print.js -> arma y print
+    } else if (window.buildAndPrintFromForm) {
+      window.buildAndPrintFromForm();
     } else {
-      console.warn('No existe window.__buildPrintArea');
+      console.warn('No existe __buildPrintArea/buildAndPrintFromForm');
     }
   } finally {
     setTimeout(() => { __PRINT_LOCK = false; }, 1200);
@@ -596,7 +511,7 @@ function bloquearSubmitConEnter(form){
 }
 
 // =========================================================================
-// INIT
+/** INIT */
 // =========================================================================
 document.addEventListener('DOMContentLoaded', () => {
   // Cámara + Galería
@@ -605,7 +520,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Fecha hoy y cálculo de retiro
   cargarFechaHoy();
 
-  // Listeners para recalcular retiro (SELECT fijo + fecha)
+  // Listeners para recalcular retiro
   const entregaSel = $('entrega-select');
   if (entregaSel) entregaSel.addEventListener('change', recalcularFechaRetiro);
   const fechaEnc = $('fecha');
@@ -623,11 +538,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // Totales
   setupCalculos();
 
-  // Prefill (ahora que los selects ya están poblados)
+  // Prefill (solo si hay datos en sessionStorage)
   doPrefillDesdeHistorial();
-
-  // Historial mini en el index
-  initHistorialUI();
 
   // Teléfono → Nº de trabajo
   const tel = $('telefono');
@@ -646,7 +558,7 @@ document.addEventListener('DOMContentLoaded', () => {
     dni.addEventListener('input', ()=>{ dni.value = dni.value.replace(/\D/g,''); });
   }
 
-  // Nº armazón → buscar detalle/precio (admite alfanumérico con guión)
+  // Nº armazón → buscar detalle/precio
   const nAr=$('numero_armazon'), detAr=$('armazon_detalle'), prAr=$('precio_armazon');
   if(nAr){
     const doAr = async () => {
@@ -671,77 +583,60 @@ document.addEventListener('DOMContentLoaded', () => {
     dnp.addEventListener('input', ()=> dnp.value = fmt(dnp.value));
   }
 
-    // Botones
-  const btnImp = $('btn-imprimir'); 
-  if (btnImp) {
-    // IMPRIMIR SOLAMENTE (no guarda, no sube, no Telegram)
-    btnImp.addEventListener('click', (e) => {
-      e.preventDefault();
-      if (typeof window.__buildPrintArea === 'function') {
-        window.__buildPrintArea();
-      } else if (window.buildAndPrintFromForm) {
-        window.buildAndPrintFromForm();
-      }
-    });
-  }
-
-  const btnClr = $('btn-limpiar'); 
-  if (btnClr) btnClr.addEventListener('click', limpiarFormulario);
+  // Botones
+  const btnImp=$('btn-imprimir'); 
+  if(btnImp){ btnImp.addEventListener('click', buildPrintArea); }
+  const btnClr=$('btn-limpiar'); 
+  if(btnClr){ btnClr.addEventListener('click', limpiarFormulario); }
 
   // Guardar
-  const form = $('formulario');
+  const form=$('formulario');
 
   // Bloquear submit con Enter — solo click guarda
   bloquearSubmitConEnter(form);
 
-  if (form) {
-    form.addEventListener('submit', async (e) => {
+  if(form){
+    form.addEventListener('submit', async (e)=>{
       e.preventDefault();
-      if (!validarEjesRequeridos()) return;
+      if(!validarEjesRequeridos()) return;
 
       const progress = progressAPI(PROGRESS_STEPS);
       progress.autoAdvance(6000);
 
-      try {
-        // 👇 guardar.js debe devolver { ok:true, pdfUrl, driveId, telegramMsgId }
+      try{
         const res = await guardarTrabajo({ progress });
-
         progress.doneAndHide(500);
 
         const pdfUrl = res?.pdfUrl || window.__LAST_PDF_URL || null;
 
-        // Diálogo post-guardado: Imprimir / Abrir PDF / Cerrar
-        const opts = {
-          icon: 'success',
-          title: 'Trabajo guardado',
-          html: `
-            <div style="font-size:14px;line-height:1.4">
-              Se generó el PDF, se subió a Drive y se envió por Telegram.
-              ${pdfUrl ? `<div style="margin-top:8px"><a href="${pdfUrl}" target="_blank" rel="noopener">Abrir PDF</a></div>` : ''}
-            </div>
-          `,
-          showCancelButton: true,
-          showDenyButton: !!pdfUrl,
-          confirmButtonText: 'Imprimir',
-          cancelButtonText: 'Cerrar',
-          denyButtonText: 'Abrir PDF'
-        };
-
-        const r = await (window.Swal ? Swal.fire(opts) : Promise.resolve({}));
-        if (r?.isConfirmed) {
-          // Imprimir
-          if (typeof window.__buildPrintArea === 'function') window.__buildPrintArea();
-          else if (window.buildAndPrintFromForm) window.buildAndPrintFromForm();
-        } else if (r?.isDenied && pdfUrl) {
-          // Abrir PDF
-          window.open(pdfUrl, '_blank', 'noopener');
+        // Modal con opciones: Imprimir / Abrir PDF / Cerrar
+        if (window.Swal){
+          const r = await Swal.fire({
+            icon:'success',
+            title:'Trabajo guardado',
+            html: `
+              <div style="font-size:14px;line-height:1.4">
+                Se generó el PDF, se subió a Drive y se envió por Telegram.
+                ${pdfUrl ? `<div style="margin-top:8px"><a href="${pdfUrl}" target="_blank" rel="noopener">Abrir PDF</a></div>` : ''}
+              </div>
+            `,
+            showCancelButton:true,
+            showDenyButton: !!pdfUrl,
+            confirmButtonText:'Imprimir',
+            cancelButtonText:'Cerrar',
+            denyButtonText:'Abrir PDF'
+          });
+          if (r.isConfirmed) buildPrintArea();
+          else if (r.isDenied && pdfUrl) window.open(pdfUrl, '_blank', 'noopener');
         }
-      } catch (err) {
+      } catch (err){
         console.error(err);
         progress.fail(err?.message || 'Error al guardar');
       }
     });
   }
+});
 
-
-export { generarNumeroTrabajoDesdeTelefono, recalcularFechaRetiro };
+// opcional: exponer un par de utilidades globales (si alguna otra parte las usa)
+window.generarNumeroTrabajoDesdeTelefono = generarNumeroTrabajoDesdeTelefono;
+window.recalcularFechaRetiro = recalcularFechaRetiro;
