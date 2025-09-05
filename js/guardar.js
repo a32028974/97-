@@ -1,6 +1,5 @@
-// js/guardar.js
+// /RECETAS/js/guardar.js — v2025-09-05 (save + pdf/drive/telegram + return pdfUrl)
 import { API_URL, PACK_URL, withParams, apiGet } from "./api.js";
-import { renderAndPrint } from "./print.js";
 
 /* ===== Helpers DOM/valores ===== */
 const $ = (id) => document.getElementById(id);
@@ -8,7 +7,7 @@ const V = (id) => (document.getElementById(id)?.value ?? "").toString().trim();
 const U = (v) => (v ?? "").toString().trim().toUpperCase();
 
 /* ===== Networking helpers ===== */
-async function postForm(url, bodyParams, { timeoutMs = 30000 } = {}) {
+async function postForm(url, bodyParams, { timeoutMs = 45000 } = {}) {
   const body = bodyParams instanceof URLSearchParams
     ? bodyParams
     : new URLSearchParams(bodyParams || {});
@@ -60,7 +59,7 @@ function entregaTxt() {
 }
 function entregaLabel() {
   const sel = document.getElementById("entrega-select");
-  return sel?.options[sel.selectedIndex]?.text || entregaTxt();
+  return sel?.options?.[sel.selectedIndex]?.text || entregaTxt();
 }
 
 function fotosBase64() {
@@ -99,7 +98,7 @@ function resumenPack() {
 /* ===== Flujo principal ===== */
 export async function guardarTrabajo({ progress } = {}) {
   const spinner = $("spinner");
-  const setStep = (label, status = "done") => { try { progress?.mark?.(label, status); } catch {} };
+  const mark = (label, status = "done") => { try { progress?.mark?.(label, status); } catch {} };
 
   try {
     if (spinner) spinner.style.display = "block";
@@ -108,36 +107,35 @@ export async function guardarTrabajo({ progress } = {}) {
     syncNumeroTrabajoHidden();
 
     // Validaciones mínimas
-    setStep("Validando datos", "run");
+    mark("Validando datos", "run");
     const nroBase = V("numero_trabajo");
     if (!nroBase) throw new Error("Ingresá el número de trabajo");
     if (!V("dni")) throw new Error("Ingresá el DNI");
     if (!V("nombre")) throw new Error("Ingresá el nombre");
-    setStep("Validando datos", "done");
+    mark("Validando datos", "done");
 
     // 1) Guardar en planilla (POST)
-    setStep("Guardando en planilla", "run");
+    mark("Guardando en planilla", "run");
     const formEl = $("formulario");
     if (!formEl) throw new Error("Formulario no encontrado");
 
-    // Armado del body + ALIAS (corregido: armazon = DETALLE, numero_* = NÚMERO)
+    // Armado del body + ALIAS (armazón número vs detalle)
     const fd = new FormData(formEl);
     const body = new URLSearchParams(fd);
 
     const numAr = (fd.get("numero_armazon") || "").toString().trim();
     const detAr = (fd.get("armazon_detalle") || "").toString().trim();
 
-    // Enviar número con múltiples alias (por compat)
+    // Número de armazón — varios alias por compatibilidad con GAS
     body.set("numero_armazon", numAr);
     body.set("n_armazon", numAr);
     body.set("num_armazon", numAr);
     body.set("nro_armazon", numAr);
     body.set("armazon_numero", numAr);
-    // si tu GAS mapea por encabezados en mayúsculas
-    body.set("NUMERO ARMAZON", numAr);
+    body.set("NUMERO ARMAZON", numAr); // algunos usan encabezados en mayúsculas
 
-    // Enviar detalle donde algunos GAS esperan 'armazon'
-    body.set("armazon", detAr);                // <- AHORA 'armazon' es el DETALLE (marca/modelo/color)
+    // Detalle de armazón — muchos backends lo esperan como 'armazon'
+    body.set("armazon", detAr);
     body.set("armazon_detalle", detAr);
     body.set("detalle_armazon", detAr);
     body.set("ARMAZON", detAr);
@@ -146,7 +144,7 @@ export async function guardarTrabajo({ progress } = {}) {
     body.set("numero", fd.get("numero_trabajo") || "");
 
     const postJson = await postForm(API_URL, body);
-    setStep("Guardando en planilla", "done");
+    mark("Guardando en planilla", "done");
 
     // Número final (si el backend devolvió uno con sufijo)
     const numeroFinal = (postJson && postJson.numero_trabajo)
@@ -154,8 +152,8 @@ export async function guardarTrabajo({ progress } = {}) {
       : nroBase;
     setNumeroTrabajo(numeroFinal);
 
-    // 2) PACK (PDF + Telegram)
-    setStep("Generando PDF", "run");
+    // 2) PACK (PDF + Drive + Telegram)
+    mark("Generando PDF", "run");
     const payload = {
       numero_trabajo: numeroFinal,
       dni: V("dni"),
@@ -164,77 +162,47 @@ export async function guardarTrabajo({ progress } = {}) {
       imagenesBase64: fotosBase64()
     };
 
-    const j = await postForm(PACK_URL, new URLSearchParams({
-      genPack: "1",
-      payload: JSON.stringify(payload)
-    }));
-    if (!j?.ok) throw new Error("No se pudo crear/enviar el PDF");
-    const packUrl = j.url || j.pdf || "";
-    setStep("Generando PDF", "done");
+    const j = await postForm(
+      PACK_URL,
+      new URLSearchParams({ genPack: "1", payload: JSON.stringify(payload) }),
+      { timeoutMs: 90000 } // darle tiempo si sube a Drive y manda Telegram
+    );
+
+    // Derivar campos comunes del pack
+    const pdfUrl = j?.url || j?.pdf || j?.driveUrl || j?.publicUrl || "";
+    const driveId = j?.driveId || j?.drive_id || "";
+    const telegramMsgId = j?.telegramMsgId || j?.telegram_msg_id || "";
+
+    mark("Generando PDF", "done");
+    // Si considerás "Subiendo fotos" parte del pack, marcamos done
+    mark("Subiendo fotos", "done");
+    // Si el pack ya envía por Telegram, marcamos done
+    mark("Enviando por Telegram", j?.ok ? "done" : "todo");
 
     // Guardar link del PDF (GET con query)
-    const hidden = $("pack_url");
-    if (hidden) hidden.value = packUrl;
-    if (packUrl) {
-      setStep("Guardando link del PDF", "run");
+    if (pdfUrl) {
+      mark("Guardando link del PDF", "run");
       try {
-        const setUrl = withParams(API_URL, { setPdf: 1, numero: numeroFinal, url: packUrl });
+        const setUrl = withParams(API_URL, { setPdf: 1, numero: numeroFinal, url: pdfUrl });
         await apiGet(setUrl);
       } catch (e) {
         console.warn("No se pudo actualizar la columna PDF:", e?.message || e);
       }
-      setStep("Guardando link del PDF", "done");
+      mark("Guardando link del PDF", "done");
     }
 
-    // 3) Confirmar + imprimir (opcional)
-    try { progress?.doneAndHide?.(0); } catch {}
-    if (spinner) spinner.style.display = "none";
+    // Dejarlo global por conveniencia
+    window.__LAST_PDF_URL = pdfUrl || window.__LAST_PDF_URL || "";
 
-    let imprimir = true;
-    if (window.Swal) {
-      const r = await Swal.fire({
-        title: "Guardado y PDF enviado",
-        text: "¿Imprimir ahora?",
-        icon: "success",
-        showCancelButton: true,
-        confirmButtonText: "Imprimir",
-        cancelButtonText: "Cerrar"
-      });
-      imprimir = r.isConfirmed;
-    } else {
-      imprimir = confirm("Guardado y PDF enviado.\n¿Imprimir ahora?");
-    }
-
-    if (imprimir) {
-      await renderAndPrint({
-        numero: numeroFinal,
-        fecha: V("fecha"),
-        fechaRetira: V("fecha_retira"),
-        nombre: V("nombre"),
-        dni: V("dni"),
-        telefono: V("telefono"),
-        dr: V("dr"),
-        cristal: V("cristal"),
-        precioCristal: V("precio_cristal"),
-        armazonNumero: V("numero_armazon"),
-        armazonDetalle: V("armazon_detalle"),
-        precioArmazon: V("precio_armazon"),
-        entregaLabel: entregaLabel(),
-        od_esf: V("od_esf"), od_cil: V("od_cil"), od_eje: V("od_eje"),
-        oi_esf: V("oi_esf"), oi_cil: V("oi_cil"), oi_eje: V("oi_eje"),
-        dnp: V("dnp"), add: V("add"),
-        total: V("total"), sena: V("sena"), saldo: V("saldo"),
-        fotoDataUrl: (Array.isArray(window.__FOTOS) && window.__FOTOS[0]) ? window.__FOTOS[0] : ""
-      });
-    }
-
-    return { ok: true, numero_trabajo: numeroFinal, pdf: packUrl };
+    // Avisar al caller y que él decida imprimir / abrir / cerrar
+    mark("Listo", "done");
+    return { ok: true, numero_trabajo: numeroFinal, pdfUrl, driveId, telegramMsgId };
 
   } catch (err) {
     try { progress?.fail?.(err?.message || "Error al guardar"); } catch {}
     if (window.Swal) Swal.fire("Error", err?.message || "Error inesperado", "error");
     throw err;
   } finally {
-    if ($("spinner")) $("spinner").style.display = "none";
+    if (spinner) spinner.style.display = "none";
   }
 }
