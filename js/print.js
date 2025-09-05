@@ -1,6 +1,12 @@
-// /js/print.js — v2025-09-05e
-// Ticket 155×130 mm, sin fotos — imprime en IFRAME (sin popups)
-// Código de barras Code128 (SVG vía JsBarcode) 65×10 mm centrado
+// /js/print.js — v2025-09-05f
+// Ticket vertical 130×155 mm, top-left, barcode 55×8 mm, IFRAME + JsBarcode
+
+// ===== Parámetros fáciles de ajustar =====
+const PAGE_W_MM = 130;        // ancho página (vertical)
+const PAGE_H_MM = 155;        // alto página
+const PAGE_MARGIN_MM = 0;     // márgenes de @page (0 = lo más arriba/izq posible)
+const BAR_W_MM = 55;          // ancho del código de barras
+const BAR_H_MM = 8;           // alto del código de barras
 
 // ===== Helpers DOM & formatos =====
 const $ = (id) => document.getElementById(id);
@@ -95,7 +101,7 @@ function collectForm() {
   };
 }
 
-// ===== HTML del ticket (155 x 130 mm) =====
+// ===== HTML del ticket =====
 function renderTicket(d) {
   return `
 <div class="ticket">
@@ -105,7 +111,7 @@ function renderTicket(d) {
       <div class="sub">San Miguel · Argentina</div>
     </div>
 
-    <!-- Código de barras centrado 65×10 mm -->
+    <!-- Código de barras centrado -->
     <div class="barwrap">
       <svg id="barcode" aria-label="Código de barras"></svg>
     </div>
@@ -168,26 +174,26 @@ function renderTicket(d) {
 function printInIframe(htmlInner, numero) {
   const css = `
   <style>
-    @page { size: 155mm 130mm; margin: 5mm; }
+    @page { size: ${PAGE_W_MM}mm ${PAGE_H_MM}mm; margin: ${PAGE_MARGIN_MM}mm; }
     * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 
     html, body { background:#fff; }
-    body { font: 9.5pt/1.25 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; color:#111; }
+    body { margin:0; font: 9.5pt/1.25 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; color:#111; }
 
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
-    .ticket { width: 145mm; box-sizing: border-box; }
+    .ticket { width: ${PAGE_W_MM - PAGE_MARGIN_MM*2}mm; box-sizing: border-box; margin:0; }
 
     /* Cabecera en 3 columnas: brand | barcode | nro */
-    .hdr { display:grid; grid-template-columns: 1fr 65mm 1fr; align-items:flex-start; column-gap: 4mm; margin-bottom: 2.5mm; }
+    .hdr { display:grid; grid-template-columns: 1fr ${BAR_W_MM}mm 1fr; align-items:flex-start; column-gap: 4mm; margin-bottom: 2.5mm; }
     .title { font-weight:700; font-size: 11pt; }
     .sub { color:#666; font-size: 8.5pt; margin-top: 0.5mm; }
     .nro { justify-self: end; }
     .nro .lbl { font-size:8pt; color:#666; }
     .nro .val { font-size: 12pt; font-weight: 700; }
 
-    /* Barcode centrado, exactamente 65×10 mm */
-    .barwrap { width:55mm; height:8mm; display:flex; align-items:center; justify-content:center; }
-    .barwrap svg { width:65mm; height:10mm; }
+    /* Barcode centrado, 55×8 mm */
+    .barwrap { width:${BAR_W_MM}mm; height:${BAR_H_MM}mm; display:flex; align-items:center; justify-content:center; }
+    .barwrap svg { width:${BAR_W_MM}mm; height:${BAR_H_MM}mm; }
 
     .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap: 2mm 4mm; }
     .kv { display:grid; grid-template-columns: 24mm 1fr; column-gap: 2mm; align-items: baseline; }
@@ -208,7 +214,6 @@ function printInIframe(htmlInner, numero) {
     .total-line { grid-column: 1 / -1; text-align:right; font-weight:800; font-size: 12pt; border-top: 1px dashed #bbb; padding-top: 1.5mm; margin-top: .5mm; }
   </style>`;
 
-  // crear iframe oculto
   const ifr = document.createElement('iframe');
   Object.assign(ifr.style, {position:'fixed',right:'0',bottom:'0',width:'0',height:'0',border:'0',visibility:'hidden'});
   document.body.appendChild(ifr);
@@ -220,7 +225,6 @@ function printInIframe(htmlInner, numero) {
 
   const w = ifr.contentWindow;
 
-  // Inyectar JsBarcode y renderizar el SVG
   const render = () => {
     try {
       const svg = doc.getElementById('barcode');
@@ -229,14 +233,10 @@ function printInIframe(htmlInner, numero) {
           format: 'CODE128',
           displayValue: false,
           margin: 0,
-          height: 40, // alto en px (no afecta: el CSS fija 10mm)
+          height: 40
         });
-      } else if (svg) {
-        // fallback: texto simple si no cargó la lib
-        svg.outerHTML = `<div style="font-weight:700;text-align:center">${numero || ''}</div>`;
       }
     } catch (_) {}
-    // imprimir
     const cleanup = () => { setTimeout(()=>{ try { document.body.removeChild(ifr); } catch{} }, 100); };
     w.addEventListener?.('afterprint', cleanup);
     setTimeout(() => { try { w.focus(); w.print(); } catch {} setTimeout(cleanup, 500); }, 50);
@@ -248,7 +248,7 @@ function printInIframe(htmlInner, numero) {
     const s = doc.createElement('script');
     s.src = 'https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js';
     s.onload = render;
-    s.onerror = render; // imprime sin barras, pero no se frena
+    s.onerror = render;
     doc.head.appendChild(s);
   }
 }
