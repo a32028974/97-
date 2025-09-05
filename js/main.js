@@ -14,7 +14,6 @@
     if (!el) return;
     const v = String(val ?? '').trim();
     if (!v) return;
-    // busca por value o por texto mostrado (soporta +0.00/-0.25, etc.)
     const opt = Array.from(el.options).find(o =>
       String(o.value).toUpperCase() === v.toUpperCase() ||
       String(o.textContent).toUpperCase() === v.toUpperCase()
@@ -31,9 +30,20 @@
     return `${yy}-${mm}-${dd}`;
   };
 
+  // 👉 Normalizador a texto con signo y 2 decimales, como esperan los <select>
+  const toSigned2 = (val) => {
+    if (val === null || val === undefined || val === '') return '';
+    const n = parseFloat(String(val).replace(',', '.'));
+    if (isNaN(n)) return '';
+    if (Math.abs(n) < 1e-9) return '0.00';
+    const t = Math.abs(n).toFixed(2);
+    return n > 0 ? `+${t}` : `-${t}`;
+  };
+
   // Identificación y fechas
-  set('numero_trabajo', data.numero); const hidden = document.getElementById('numero_trabajo_hidden'); if (hidden) hidden.value = data.numero;
-  set('fecha', data.fecha); // tu input no es type=date
+  set('numero_trabajo', data.numero);
+  const hidden = document.getElementById('numero_trabajo_hidden'); if (hidden) hidden.value = data.numero;
+  set('fecha', data.fecha);
   set('fecha_retira', ddmmyy_to_yyyy_mm_dd(data.retira) || data.retira || '');
 
   // Datos básicos
@@ -49,23 +59,23 @@
   // Montos / otros
   set('obra_social', data.obra_social);
   set('precio_cristal', data.precio_cristal);
-  set('precio_armazon', data.precio_armazon);
+  set('precio_armazon', data.pr ecio_armazon);
   set('precio_otro', data.precio_otro);
   set('forma_pago', data.forma_pago);
 
   // ===== Graduaciones =====
-  // ESF/CIL (SELECTS) y EJE (INPUTS)
-  setSelectIfExists('od_esf', data.od_esf);
-  setSelectIfExists('od_cil', data.od_cil);
-  set('od_eje', data.od_eje);
+  // ESF/CIL: normalizo a "+x.xx"/"-x.xx"/"0.00" para que machee con las opciones
+  setSelectIfExists('od_esf', toSigned2(data.od_esf));
+  setSelectIfExists('od_cil', toSigned2(data.od_cil));
+  set('od_eje', (data.od_eje ?? '').toString());
 
-  setSelectIfExists('oi_esf', data.oi_esf);
-  setSelectIfExists('oi_cil', data.oi_cil);
-  set('oi_eje', data.oi_eje);
+  setSelectIfExists('oi_esf', toSigned2(data.oi_esf));
+  setSelectIfExists('oi_cil', toSigned2(data.oi_cil));
+  set('oi_eje', (data.oi_eje ?? '').toString());
 
   // ADD y DNP
-  set('add', data.add);
-  set('dnp', data.dnp);
+  set('add', (data.add ?? '').toString());
+  set('dnp', (data.dnp ?? '').toString());
 
   // Disparar eventos para refrescar validaciones y totales
   [
@@ -80,7 +90,6 @@
 
   if (typeof window.__updateTotals === 'function') window.__updateTotals();
 
-  // foco
   const foco = document.getElementById('telefono') || document.getElementById('cristal');
   if (foco) foco.focus();
 })();
