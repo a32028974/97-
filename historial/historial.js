@@ -1,64 +1,61 @@
-// /historial/historial.js — v9 (abrir sin prefill + conserva OD/OI)
+// /historial/historial.js — v9 (compacto + iconos + abrir sin prefill + fechas dd/mm/aa)
 import { API_URL as BASE } from '../js/api.js';
 const API_URL = BASE;
 
+// ---------- helpers UI ----------
 const $  = (s) => document.querySelector(s);
 function setSpin(on){ const sp = $('#spinner'); if (sp) sp.hidden = !on; }
 function setStatus(msg){ const el = $('#status'); if (el) el.innerHTML = msg || ''; }
 function showEmpty(show){ const el = $('#empty'); el && (el.hidden = !show); }
 
+// ---------- estado ----------
 let ALL_ROWS = [];
 let FILTERED = [];
 const PAGE_SIZE = 50;
 let page = 1;
 
-// ----- helpers de mapeo -----
-const pick = (obj, ...keys) => {
-  for (const k of keys) {
-    if (obj[k] !== undefined && obj[k] !== null && obj[k] !== '') return obj[k];
-  }
+// ---------- pick helper ----------
+const pickFrom = (obj, ...keys) => {
+  for (const k of keys) if (obj[k] !== undefined && obj[k] !== null && obj[k] !== '') return obj[k];
   return '';
 };
 
-// ----- normalización (conserva OD/OI, ADD, DNP, etc.) -----
+// ---------- normalización (con alias, incluye graduaciones) ----------
 function normalizeRows(list){
   if (!Array.isArray(list)) return [];
   return list.map(r => Object.freeze({
-    // básicos
-    estado      : pick(r,'estado'),
-    fecha       : pick(r,'fecha'),
-    retira      : pick(r,'retira','prometida','fecha_prometida'),
-    numero      : pick(r,'numero','num','nro','n_trabajo'),
-    dni         : pick(r,'dni','documento'),
-    nombre      : pick(r,'nombre','cliente'),
-    telefono    : pick(r,'telefono','tel'),
-    vendedor    : pick(r,'vendedor'),
-    dist_focal  : pick(r,'dist_focal','distancia_focal'),
-    cristal     : pick(r,'cristal','tipo_cristal'),
-    n_armazon   : pick(r,'n_armazon','numero_armazon','n_arma','arma_n'),
-    det_armazon : pick(r,'det_armazon','armazon','detalle','detalle_armazon'),
-    pdf         : pick(r,'pdf','link_pdf','url_pdf'),
-
-    // montos / otros
-    obra_social    : pick(r,'obra_social','os'),
-    precio_cristal : pick(r,'precio_cristal'),
-    precio_armazon : pick(r,'precio_armazon'),
-    precio_otro    : pick(r,'precio_otro'),
-    forma_pago     : pick(r,'forma_pago','pago'),
-
+    estado      : pickFrom(r,'estado'),
+    fecha       : pickFrom(r,'fecha'),
+    retira      : pickFrom(r,'retira','prometida','fecha_prometida'),
+    numero      : pickFrom(r,'numero','num','nro','n_trabajo'),
+    dni         : pickFrom(r,'dni','documento'),
+    nombre      : pickFrom(r,'nombre','cliente'),
+    telefono    : pickFrom(r,'telefono','tel'),
+    vendedor    : pickFrom(r,'vendedor'),
+    dist_focal  : pickFrom(r,'dist_focal','distancia_focal'),
+    cristal     : pickFrom(r,'cristal','tipo_cristal'),
+    n_armazon   : pickFrom(r,'n_armazon','numero_armazon','n_arma','arma_n'),
+    det_armazon : pickFrom(r,'det_armazon','armazon','detalle','detalle_armazon'),
+    pdf         : pickFrom(r,'pdf','link_pdf','url_pdf'),
+    // montos
+    obra_social    : pickFrom(r,'obra_social','os'),
+    precio_cristal : pickFrom(r,'precio_cristal'),
+    precio_armazon : pickFrom(r,'precio_armazon'),
+    precio_otro    : pickFrom(r,'precio_otro'),
+    forma_pago     : pickFrom(r,'forma_pago','pago'),
     // graduaciones
-    od_esf : pick(r,'od_esf','OD_ESF','odEsf','esf_od'),
-    od_cil : pick(r,'od_cil','OD_CIL','odCil','cil_od'),
-    od_eje : pick(r,'od_eje','OD_EJE','odEje','eje_od'),
-    oi_esf : pick(r,'oi_esf','OI_ESF','oiEsf','esf_oi'),
-    oi_cil : pick(r,'oi_cil','OI_CIL','oiCil','cil_oi'),
-    oi_eje : pick(r,'oi_eje','OI_EJE','oiEje','eje_oi'),
-    add    : pick(r,'add','ADD'),
-    dnp    : pick(r,'dnp','DNP')
+    od_esf : pickFrom(r,'od_esf','OD_ESF','OD ESF','odEsf','esf_od','OD_ESFERA','OD ESFERA'),
+    od_cil : pickFrom(r,'od_cil','OD_CIL','OD CIL','odCil','cil_od','OD_CILINDRO','OD CILINDRO'),
+    od_eje : pickFrom(r,'od_eje','OD_EJE','OD EJE','odEje','eje_od'),
+    oi_esf : pickFrom(r,'oi_esf','OI_ESF','OI ESF','oiEsf','esf_oi','OI_ESFERA','OI ESFERA'),
+    oi_cil : pickFrom(r,'oi_cil','OI_CIL','OI CIL','oiCil','cil_oi','OI_CILINDRO','OI CILINDRO'),
+    oi_eje : pickFrom(r,'oi_eje','OI_EJE','OI EJE','oiEje','eje_oi'),
+    add    : pickFrom(r,'add','ADD'),
+    dnp    : pickFrom(r,'dnp','DNP')
   }));
 }
 
-// ----- fechas dd/mm/aa -----
+// ---------- formato fechas dd/mm/aa ----------
 function toDate(val){
   if (!val) return null;
   if (val instanceof Date) return isNaN(val) ? null : val;
@@ -81,7 +78,7 @@ function fmtDDMMYY(d){
 }
 function formatFecha(v){ const d = toDate(v); return d?fmtDDMMYY(d):(v??''); }
 
-// ----- estilos compactos (mismo que tenías) -----
+// ---------- estilos compactos (inyectados) ----------
 function ensureCompactStyles(){
   if (document.getElementById('hist-compact-css')) return;
   const style = document.createElement('style');
@@ -108,12 +105,13 @@ function ensureCompactStyles(){
   document.head.appendChild(style);
 }
 
+// ---------- iconos (SVG inline) ----------
 const ICONS = {
   cargar: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a1 1 0 0 1 1 1v8.586l2.293-2.293a1 1 0 1 1 1.414 1.414l-4.007 4.007a1 1 0 0 1-1.414 0L7.279 11.707a1 1 0 1 1 1.414-1.414L11 12.586V4a1 1 0 0 1 1-1z"/><path d="M5 19a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3a1 1 0 1 0-2 0v3H7v-3a1 1 0 1 0-2 0v3z"/></svg>`,
   abrir:  `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3h5a1 1 0 0 1 1 1v5a1 1 0 1 1-2 0V6.414l-7.293 7.293a1 1 0 0 1-1.414-1.414L16.586 5H14a1 1 0 1 1 0-2z"/><path d="M5 5h6a1 1 0 1 1 0 2H6v11h11v-5a1 1 0 1 1 2 0v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/></svg>`
 };
 
-// ----- render -----
+// ---------- render ----------
 function renderPage(){
   const tbody = $('#tbody');
   if (!tbody) return;
@@ -164,12 +162,11 @@ function renderPage(){
   $('#pager').hidden = (totalPages <= 1);
   $('#pageInfo').textContent = `Página ${page} de ${totalPages} — ${FILTERED.length} resultado${FILTERED.length!==1?'s':''}`;
 
-  // Acciones por fila (IMPORTANTE: detener propagación)
+  // Acciones por fila (evitar que hagan "click" en la fila)
   tbody.querySelectorAll('button[data-act]').forEach(btn=>{
     btn.addEventListener('click', (ev)=>{
-      ev.stopPropagation(); // <- evita que el click “suba” y dispare Cargar por la fila
+      ev.stopPropagation(); // <- evita disparar "Cargar" por click en fila
       const act = btn.getAttribute('data-act');
-
       if (act === 'fill') {
         const idx = Number(btn.getAttribute('data-abs-idx'));
         const row = FILTERED[idx];
@@ -186,18 +183,20 @@ function renderPage(){
   });
 }
 
-// Click en la fila → solo “Cargar” si NO clickeaste en la columna de acciones
+// click en fila → “Cargar” solo si NO clickeaste en la columna de acciones
 document.getElementById('tbody')?.addEventListener('click', (e)=>{
   const actionsCell = e.target.closest('.actions, .actions *');
-  if (actionsCell) return; // si fue dentro de acciones, no hacemos nada
+  if (actionsCell) return;
   const tr = e.target.closest('tr'); if (!tr) return;
   const btn = tr.querySelector('button[data-act="fill"]');
   if (btn) btn.click();
 });
 
-// ---- filtros / fetch / init (igual que venías) ----
+// ---------- sin filtros ----------
 function applyFilters(){ FILTERED = [...ALL_ROWS]; page = 1; renderPage(); }
-function parsePossiblyWrappedJSON(raw) { /* igual a tu versión */ 
+
+// ---------- parser robusto ----------
+function parsePossiblyWrappedJSON(raw) {
   if (!raw) return null;
   let txt = String(raw).trim();
   if (txt.startsWith(")]}'")) txt = txt.replace(/^\)\]\}'\s*/, '');
@@ -218,6 +217,7 @@ function parsePossiblyWrappedJSON(raw) { /* igual a tu versión */
   try { return JSON.parse(txt); } catch { return null; }
 }
 
+// ---------- calls ----------
 async function fetchUltimos30(){
   const u = `${API_URL}?histUltimos=30`;
   const res = await fetch(u, { method:'GET', redirect:'follow', cache:'no-store' });
@@ -232,6 +232,7 @@ async function fetchUltimos30(){
            : [];
   return normalizeRows(arr);
 }
+
 async function fetchBuscar(q){
   const u = `${API_URL}?histBuscar=${encodeURIComponent(q)}&limit=500`;
   const res = await fetch(u, { method:'GET', redirect:'follow', cache:'no-store' });
@@ -247,6 +248,7 @@ async function fetchBuscar(q){
   return normalizeRows(arr);
 }
 
+// ---------- live search ----------
 let debounceTimer;
 function liveSearch(){
   clearTimeout(debounceTimer);
@@ -265,16 +267,21 @@ function liveSearch(){
   }, 300);
 }
 
+// ---------- init ----------
 function attach(){
   ensureCompactStyles();
+
   const pdfOnlyWrap = $('#pdfOnly')?.closest('label, .chk, div');
   if (pdfOnlyWrap) pdfOnlyWrap.style.display = 'none';
+
   $('#btnBuscar')?.addEventListener('click', e => e.preventDefault());
   $('#q')?.addEventListener('input', liveSearch);
   $('#q')?.addEventListener('keydown', (e)=>{ if (e.key === 'Enter') e.preventDefault(); });
   $('#btnLimpiar')?.addEventListener('click', ()=>{ $('#q').value=''; liveSearch(); });
+
   $('#prev')?.addEventListener('click', ()=>{ page--; renderPage(); });
   $('#next')?.addEventListener('click', ()=>{ page++; renderPage(); });
+
   (async () => {
     setSpin(true);
     try{
@@ -284,7 +291,9 @@ function attach(){
     }catch(e){
       console.error(e);
       setStatus(`<span style="color:#d33">No se pudo cargar el historial</span>`);
-    }finally{ setSpin(false); }
+    }finally{
+      setSpin(false);
+    }
   })();
 }
 attach();
