@@ -1,13 +1,26 @@
-// /js/print.js — v2025-09-05g
-// Ticket vertical 130×155 mm, pegado arriba/izq, barcode 55×8 mm
-// Imprime en un IFRAME (sin popups). Genera Code128 como SVG con JsBarcode.
+// /js/print.js — v2025-09-05h
+// Ticket vertical 130×155 mm. Auto-nudge para móviles/tablets (sin tocar diálogo de print)
+// Barcode Code128 (SVG, 55×8 mm). IFRAME, sin popups.
 
 (function () {
-  // ===== Parámetros =====
-  const PAGE_W_MM = 130;        // ancho página (vertical)
-  const PAGE_H_MM = 155;        // alto página
-  const BAR_W_MM  = 55;         // ancho código de barras
-  const BAR_H_MM  = 8;          // alto código de barras
+  // ===== Parámetros base del ticket =====
+  const PAGE_W_MM = 130;   // ancho
+  const PAGE_H_MM = 155;   // alto
+  const BAR_W_MM  = 55;    // barcode ancho
+  const BAR_H_MM  = 8;     // barcode alto
+
+  // ===== Detección simple de móvil/tablet =====
+  const UA = navigator.userAgent || '';
+  const IS_MOBILE = /Android|iPhone|iPad|iPod/i.test(UA);
+
+  // ===== Auto-nudge (desplazamiento para compensar encabezados/márgenes por defecto)
+  // Valores conservadores que funcionan bien en Android/Chrome y la mayoría de drivers
+  const NUDGE_TOP_MM  = IS_MOBILE ? -12 : 0; // desplazar hacia arriba
+  const NUDGE_LEFT_MM = IS_MOBILE ? -8  : 0; // desplazar hacia la izquierda
+
+  // Para evitar recorte por aplicar nudge negativo, ampliamos “virtualmente” el canvas de página
+  const EXTRA_W_MM = Math.max(0, -NUDGE_LEFT_MM);
+  const EXTRA_H_MM = Math.max(0, -NUDGE_TOP_MM);
 
   // ===== Helpers DOM & formatos =====
   const $ = (id) => document.getElementById(id);
@@ -105,69 +118,72 @@
   // ===== HTML del ticket =====
   function renderTicket(d) {
     return `
-<div class="ticket">
-  <header class="hdr">
-    <div class="brand">
-      <div class="title">Óptica Cristal</div>
-      <div class="sub">San Miguel · Argentina</div>
-    </div>
+<div class="sheet">
+  <!-- Contenido del ticket desplazado (nudge) dentro de la “hoja” -->
+  <div class="ticket" style="transform: translate(${NUDGE_LEFT_MM}mm, ${NUDGE_TOP_MM}mm);">
+    <header class="hdr">
+      <div class="brand">
+        <div class="title">Óptica Cristal</div>
+        <div class="sub">San Miguel · Argentina</div>
+      </div>
 
-    <!-- Código de barras centrado -->
-    <div class="barwrap">
-      <svg id="barcode" aria-label="Código de barras"></svg>
-    </div>
+      <!-- Código de barras centrado -->
+      <div class="barwrap">
+        <svg id="barcode" aria-label="Código de barras"></svg>
+      </div>
 
-    <div class="nro">
-      <div class="lbl">N° TRABAJO</div>
-      <div class="val mono">${d.numero}</div>
-    </div>
-  </header>
+      <div class="nro">
+        <div class="lbl">N° TRABAJO</div>
+        <div class="val mono">${d.numero}</div>
+      </div>
+    </header>
 
-  <section class="grid2 info">
-    <div class="kv"><div class="k">Cliente</div><div class="v">${d.cliente}</div></div>
-    <div class="kv"><div class="k">DNI</div><div class="v mono">${d.dni}</div></div>
-    <div class="kv"><div class="k">Teléfono</div><div class="v mono">${d.tel}</div></div>
-    <div class="kv"><div class="k">Fecha</div><div class="v mono">${d.fecha}</div></div>
-    <div class="kv"><div class="k">Retira</div><div class="v mono">${d.retira}</div></div>
-    <div class="kv"><div class="k">Entrega</div><div class="v">${d.entrega}</div></div>
-  </section>
+    <section class="grid2 info">
+      <div class="kv"><div class="k">Cliente</div><div class="v">${d.cliente}</div></div>
+      <div class="kv"><div class="k">DNI</div><div class="v mono">${d.dni}</div></div>
+      <div class="kv"><div class="k">Teléfono</div><div class="v mono">${d.tel}</div></div>
+      <div class="kv"><div class="k">Fecha</div><div class="v mono">${d.fecha}</div></div>
+      <div class="kv"><div class="k">Retira</div><div class="v mono">${d.retira}</div></div>
+      <div class="kv"><div class="k">Entrega</div><div class="v">${d.entrega}</div></div>
+    </section>
 
-  <section class="grid2 dtl">
-    <div class="kv"><div class="k">Cristal</div><div class="v">${d.cristal}</div></div>
-    <div class="kv"><div class="k">Dist. Focal</div><div class="v">${d.distFocal}</div></div>
-    <div class="kv"><div class="k">Armazón Nº</div><div class="v mono">${d.armazonNum}</div></div>
-    <div class="kv"><div class="k">Detalle</div><div class="v">${d.armazonDet}</div></div>
-    <div class="kv"><div class="k">DNP</div><div class="v mono">${d.dnp}</div></div>
-    <div class="kv"><div class="k">ADD</div><div class="v mono">${d.add}</div></div>
-    <div class="kv"><div class="k">DR</div><div class="v">${d.dr}</div></div>
-    <div class="kv"><div class="k">Pago</div><div class="v">${d.formaPago}</div></div>
-  </section>
+    <section class="grid2 dtl">
+      <div class="kv"><div class="k">Cristal</div><div class="v">${d.cristal}</div></div>
+      <div class="kv"><div class="k">Dist. Focal</div><div class="v">${d.distFocal}</div></div>
+      <div class="kv"><div class="k">Armazón Nº</div><div class="v mono">${d.armazonNum}</div></div>
+      <div class="kv"><div class="k">Detalle</div><div class="v">${d.armazonDet}</div></div>
+      <div class="kv"><div class="k">DNP</div><div class="v mono">${d.dnp}</div></div>
+      <div class="kv"><div class="k">ADD</div><div class="v mono">${d.add}</div></div>
+      <div class="kv"><div class="k">DR</div><div class="v">${d.dr}</div></div>
+      <div class="kv"><div class="k">Pago</div><div class="v">${d.formaPago}</div></div>
+    </section>
 
-  <section class="grades">
-    <div class="box">
-      <div class="box-t">OD</div>
-      <table class="tbl">
-        <tr><th>ESF</th><th>CIL</th><th>EJE</th></tr>
-        <tr><td class="mono">${d.od_esf}</td><td class="mono">${d.od_cil}</td><td class="mono">${d.od_eje}</td></tr>
-      </table>
-    </div>
-    <div class="box">
-      <div class="box-t">OI</div>
-      <table class="tbl">
-        <tr><th>ESF</th><th>CIL</th><th>EJE</th></tr>
-        <tr><td class="mono">${d.oi_esf}</td><td class="mono">${d.oi_cil}</td><td class="mono">${d.oi_eje}</td></tr>
-      </table>
-    </div>
-  </section>
+    <section class="grades">
+      <div class="box">
+        <div class="box-t">OD</div>
+        <table class="tbl">
+          <tr><th>ESF</th><th>CIL</th><th>EJE</th></tr>
+          <tr><td class="mono">${d.od_esf}</td><td class="mono">${d.od_cil}</td><td class="mono">${d.od_eje}</td></tr>
+        </table>
+      </div>
+      <div class="box">
+        <div class="box-t">OI</div>
+        <table class="tbl">
+          <tr><th>ESF</th><th>CIL</th><th>EJE</th></tr>
+          <tr><td class="mono">${d.oi_esf}</td><td class="mono">${d.oi_cil}</td><td class="mono">${d.oi_eje}</td></tr>
+        </table>
+      </div>
+    </section>
 
-  <section class="totals">
-    <div class="kv"><div class="k">Cristal</div><div class="v mono">${d.precioCristal}</div></div>
-    <div class="kv"><div class="k">Armazón</div><div class="v mono">${d.precioArmazon}</div></div>
-    <div class="kv"><div class="k">Obra social</div><div class="v mono">${d.obraSocial}</div></div>
-    <div class="kv"><div class="k">Seña</div><div class="v mono">${d.sena}</div></div>
-    <div class="kv"><div class="k">Saldo</div><div class="v mono">${d.saldo}</div></div>
-    <div class="total-line">TOTAL: <span class="mono">${d.total}</span></div>
-  </section>
+    <section class="totals">
+      <div class="kv"><div class="k">Cristal</div><div class="v mono">${d.precioCristal}</div></div>
+      <div class="kv"><div class="k">Armazón</div><div class="v mono">${d.precioArmazon}</div></div>
+      <div class="kv"><div class="k">Obra social</div><div class="v mono">${d.obraSocial}</div></div>
+      <div class="kv"><div class="k">Seña</div><div class="v mono">${d.sena}</div></div>
+      <div class="kv"><div class="k">Saldo</div><div class="v mono">${d.saldo}</div></div>
+      <div class="total-line">TOTAL: <span class="mono">${d.total}</span></div>
+    </section>
+  </div>
 </div>`;
   }
 
@@ -175,13 +191,12 @@
   function printInIframe(htmlInner, numero) {
     const css = `
     <style>
-      /* Página vertical sin márgenes del documento */
-      @page { size: ${PAGE_W_MM}mm ${PAGE_H_MM}mm; margin: 0; }
+      /* Aumentamos “virtualmente” el canvas para no recortar al aplicar nudge */
+      @page { size: ${PAGE_W_MM + EXTRA_W_MM}mm ${PAGE_H_MM + EXTRA_H_MM}mm; margin: 0; }
 
       * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-      html, body { background:#fff; }
-      /* ¡Nada de márgenes! */
-      html, body { margin:0 !important; padding:0 !important; }
+
+      html, body { background:#fff; margin:0 !important; padding:0 !important; }
 
       body {
         font: 9.5pt/1.25 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
@@ -190,15 +205,19 @@
 
       .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
 
-      /* Ticket pegado a la esquina superior-izquierda del área imprimible */
+      /* “Hoja” que ocupa todo el canvas ampliado */
+      .sheet {
+        width: ${PAGE_W_MM + EXTRA_W_MM}mm;
+        height: ${PAGE_H_MM + EXTRA_H_MM}mm;
+        position: fixed; top: 0; left: 0;
+        overflow: hidden;
+      }
+
+      /* Ticket del tamaño real. Se desplaza con transform (nudge) */
       .ticket {
         width: ${PAGE_W_MM}mm;
         height: ${PAGE_H_MM}mm;
         box-sizing: border-box;
-        position: fixed;   /* clave */
-        top: 0;            /* clave */
-        left: 0;           /* clave */
-        margin: 0;
       }
 
       /* Cabecera: brand | barcode | nro */
@@ -251,7 +270,7 @@
             format: 'CODE128',
             displayValue: false,
             margin: 0,
-            height: 40 // el CSS fija el tamaño físico (mm)
+            height: 40 // tamaño “lógico”; el físico lo define el CSS (mm)
           });
         }
       } catch (_) {}
