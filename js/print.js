@@ -1,5 +1,5 @@
-// /js/print.js — v2025-09-05 (Ticket 155×130 mm, sin fotos)
-// Se usa desde main.js: window.__buildPrintArea() -> imprime el ticket
+// /js/print.js — v2025-09-05c
+// Ticket 155×130 mm, sin fotos — imprime en un IFRAME oculto (sin popups)
 
 // ===== Helpers DOM & formatos =====
 const $ = (id) => document.getElementById(id);
@@ -56,13 +56,13 @@ const dash = (v) => (v && String(v).trim()) ? String(v).trim() : '—';
 
 // ===== Leo los datos del formulario =====
 function collectForm() {
-  const d = {
+  return {
     numero: dash($('numero_trabajo')?.value),
     cliente: dash($('nombre')?.value),
     dni: dash($('dni')?.value),
     tel: dash($('telefono')?.value),
 
-    fecha: safeDDMMYYYY($('fecha')),
+    fecha:  safeDDMMYYYY($('fecha')),
     retira: safeDDMMYYYY($('fecha_retira')),
     entrega: getSelText($('entrega-select')) || '—',
 
@@ -92,12 +92,10 @@ function collectForm() {
 
     formaPago: dash($('forma_pago')?.value || '')
   };
-  return d;
 }
 
 // ===== HTML del ticket (155 x 130 mm) =====
 function renderTicket(d) {
-  // Nota: usamos fuentes chicas y grillas compactas para que entre todo
   return `
 <div class="ticket">
   <header class="hdr">
@@ -159,11 +157,8 @@ function renderTicket(d) {
 </div>`;
 }
 
-// ===== Ventana de impresión (CSS embebido con @page 155×130) =====
-function printInPopup(html) {
-  const w = window.open('', '_blank', 'noopener,noreferrer');
-  if (!w) { alert('Desbloqueá las ventanas emergentes para imprimir.'); return; }
-
+// ===== Imprimir en IFRAME oculto =====
+function printInIframe(htmlInner) {
   const css = `
   <style>
     @page { size: 155mm 130mm; margin: 5mm; }
@@ -200,22 +195,44 @@ function printInPopup(html) {
     .total-line { grid-column: 1 / -1; text-align:right; font-weight:800; font-size: 12pt; border-top: 1px dashed #bbb; padding-top: 1.5mm; margin-top: .5mm; }
   </style>`;
 
-  w.document.open();
-  w.document.write(`<!doctype html><html><head><meta charset="utf-8">${css}</head><body>${html}</body></html>`);
-  w.document.close();
+  // crear iframe oculto
+  const ifr = document.createElement('iframe');
+  ifr.style.position = 'fixed';
+  ifr.style.right = '0';
+  ifr.style.bottom = '0';
+  ifr.style.width = '0';
+  ifr.style.height = '0';
+  ifr.style.border = '0';
+  ifr.style.visibility = 'hidden';
+  document.body.appendChild(ifr);
 
-  // Imprimir cuando cargue el contenido
-  w.onload = () => { try { w.focus(); w.print(); } catch {} setTimeout(()=>{ try{ w.close(); }catch{} }, 300); };
+  const doc = ifr.contentDocument || ifr.contentWindow.document;
+  doc.open();
+  doc.write(`<!doctype html><html><head><meta charset="utf-8">${css}</head><body>${htmlInner}</body></html>`);
+  doc.close();
+
+  // imprimir lo antes posible (dentro del gesto de usuario)
+  const w = ifr.contentWindow;
+  const cleanup = () => { setTimeout(()=>{ try { document.body.removeChild(ifr); } catch{} }, 100); };
+  // algunos navegadores disparan 'afterprint'
+  w.addEventListener?.('afterprint', cleanup);
+
+  // pequeño delay para layout y luego print()
+  setTimeout(() => {
+    try { w.focus(); w.print(); } catch {}
+    // fallback de cleanup si no hay afterprint
+    setTimeout(cleanup, 500);
+  }, 20);
 }
 
 // ===== API pública =====
 export function buildAndPrintFromForm() {
   const data = collectForm();
   const html = renderTicket(data);
-  printInPopup(html);
+  printInIframe(html);
 }
 
 // compat con main.js (que llama a window.__buildPrintArea)
 window.__buildPrintArea = buildAndPrintFromForm;
 // Por si alguna parte usa esto:
-window.__renderAndPrint = (html) => printInPopup(html);
+window.__renderAndPrint = (html) => printInIframe(html);
