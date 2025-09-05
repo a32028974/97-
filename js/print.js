@@ -1,27 +1,25 @@
-// /RECETAS/js/print.js — v2025-09-05b
-// A4 estable + fechas dd/mm + totales
-// Compat: export { renderAndPrint } y window.__buildPrintArea
+// /js/print.js — v2025-09-05 (Ticket 155×130 mm, sin fotos)
+// Se usa desde main.js: window.__buildPrintArea() -> imprime el ticket
 
-// ---------- helpers ----------
+// ===== Helpers DOM & formatos =====
 const $ = (id) => document.getElementById(id);
 
-const getSelText = (sel) => {
-  if (!sel) return '';
-  if (sel.tagName === 'SELECT') {
-    const opt = sel.options[sel.selectedIndex];
-    return (opt?.textContent || opt?.value || '').trim();
+const getSelText = (el) => {
+  if (!el) return '';
+  if (el.tagName === 'SELECT') {
+    const o = el.options[el.selectedIndex];
+    return (o?.textContent || o?.value || '').trim();
   }
-  return (sel.value || '').trim();
+  return (el.value || '').trim();
 };
 
-// dinero
 function normNumberLike(v) {
   if (v == null) return 0;
   const s = String(v).replace(/[^\d.,-]/g, '').replace(/\./g, '').replace(',', '.');
   const n = parseFloat(s);
   return isNaN(n) ? 0 : n;
 }
-function fmtMoney(v) {
+function money(v) {
   const n = Math.max(0, normNumberLike(v));
   return '$ ' + n.toLocaleString('es-AR', { maximumFractionDigits: 0 });
 }
@@ -38,91 +36,78 @@ function parseFechaLoose(str) {
     return isNaN(d) ? null : d;
   }
   m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (m) {
-    const d = new Date(+m[1], +m[2] - 1, +m[3]);
-    return isNaN(d) ? null : d;
-  }
+  if (m) return new Date(+m[1], +m[2]-1, +m[3]);
   const d2 = new Date(s);
   return isNaN(d2) ? null : d2;
 }
-function fmtDDMMYYYY(d) {
-  const dd = String(d.getDate()).padStart(2, '0');
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const yyyy = String(d.getFullYear());
-  return `${dd}/${mm}/${yyyy}`;
+function ddmmyyyy(d) {
+  const dd = String(d.getDate()).padStart(2,'0');
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  const yy = d.getFullYear();
+  return `${dd}/${mm}/${yy}`;
 }
-function safeFechaDDMMYYYY(inputEl, fallback) {
-  const raw = (inputEl?.value || '').trim();
-  const d = parseFechaLoose(raw || fallback);
-  return d ? fmtDDMMYYYY(d) : (raw || '');
+function safeDDMMYYYY(inputEl, fallback='') {
+  const raw = (inputEl?.value || '').trim() || fallback;
+  const d = parseFechaLoose(raw);
+  return d ? ddmmyyyy(d) : (raw || '');
 }
 
-// utils valores
-const valOrDash = (el) => {
-  if (!el) return '—';
-  const v = (el.tagName === 'SELECT') ? getSelText(el) : (el.value || '').trim();
-  return v || '—';
-};
+const dash = (v) => (v && String(v).trim()) ? String(v).trim() : '—';
 
-// ---------- colecta del form ----------
-function collectData() {
-  const numero   = valOrDash($('numero_trabajo'));
-  const cliente  = valOrDash($('nombre'));
-  const dni      = valOrDash($('dni'));
-  const tel      = valOrDash($('telefono'));
+// ===== Leo los datos del formulario =====
+function collectForm() {
+  const d = {
+    numero: dash($('numero_trabajo')?.value),
+    cliente: dash($('nombre')?.value),
+    dni: dash($('dni')?.value),
+    tel: dash($('telefono')?.value),
 
-  const fechaEncTxt   = $('fecha')?.value || '';
-  const fechaEnc      = safeFechaDDMMYYYY($('fecha'), fechaEncTxt);
-  const fechaRetira   = safeFechaDDMMYYYY($('fecha_retira'), '');
-  const entregaTxt    = getSelText($('entrega-select')) || '—';
+    fecha: safeDDMMYYYY($('fecha')),
+    retira: safeDDMMYYYY($('fecha_retira')),
+    entrega: getSelText($('entrega-select')) || '—',
 
-  const cristal       = valOrDash($('cristal'));
-  const nArmazon      = valOrDash($('numero_armazon'));
-  const detArmazon    = valOrDash($('armazon_detalle'));
-  const distFocal     = getSelText($('distancia_focal')) || '—';
-  const vendedor      = valOrDash($('vendedor'));
-  const add           = valOrDash($('add'));
-  const dnp           = valOrDash($('dnp'));
+    cristal: dash($('cristal')?.value),
+    distFocal: getSelText($('distancia_focal')) || '—',
+    armazonNum: dash($('numero_armazon')?.value),
+    armazonDet: dash($('armazon_detalle')?.value),
 
-  const od_esf = getSelText($('od_esf')) || '0.00';
-  const od_cil = getSelText($('od_cil')) || '0.00';
-  const od_eje = ($('od_eje')?.value || '').trim() || '0';
+    od_esf: getSelText($('od_esf')) || '0.00',
+    od_cil: getSelText($('od_cil')) || '0.00',
+    od_eje: ($('od_eje')?.value || '').trim() || '0',
 
-  const oi_esf = getSelText($('oi_esf')) || '0.00';
-  const oi_cil = getSelText($('oi_cil')) || '0.00';
-  const oi_eje = ($('oi_eje')?.value || '').trim() || '0';
+    oi_esf: getSelText($('oi_esf')) || '0.00',
+    oi_cil: getSelText($('oi_cil')) || '0.00',
+    oi_eje: ($('oi_eje')?.value || '').trim() || '0',
 
-  const precioCristal = fmtMoney($('precio_cristal')?.value || 0);
-  const precioArmazon = fmtMoney($('precio_armazon')?.value || 0);
-  const total         = fmtMoney($('total')?.value || 0);
-  const sena          = fmtMoney($('sena')?.value || 0);
-  const obraSocial    = fmtMoney($('importe_obra_social')?.value || 0);
-  const saldo         = fmtMoney($('saldo')?.value || 0);
+    dnp: dash($('dnp')?.value),
+    add: dash($('add')?.value),
+    dr:  dash($('dr')?.value),
 
-  return {
-    numero, cliente, dni, tel,
-    fechaEnc, fechaRetira, entregaTxt,
-    cristal, nArmazon, detArmazon, distFocal, vendedor, add, dnp,
-    od_esf, od_cil, od_eje, oi_esf, oi_cil, oi_eje,
-    precioCristal, precioArmazon, total, sena, obraSocial, saldo
+    precioCristal: money($('precio_cristal')?.value || 0),
+    precioArmazon: money($('precio_armazon')?.value || 0),
+    obraSocial:    money($('importe_obra_social')?.value || 0),
+    sena:          money($('sena')?.value || 0),
+    saldo:         money($('saldo')?.value || 0),
+    total:         money($('total')?.value || 0),
+
+    formaPago: dash($('forma_pago')?.value || '')
   };
+  return d;
 }
 
-// ---------- plantilla de hoja ----------
-function renderSheet(d) {
+// ===== HTML del ticket (155 x 130 mm) =====
+function renderTicket(d) {
+  // Nota: usamos fuentes chicas y grillas compactas para que entre todo
   return `
-<div class="sheet">
+<div class="ticket">
   <header class="hdr">
     <div class="brand">
-      <img src="./logo.png" alt="Óptica Cristal" />
-      <div class="brand-meta">
-        <div class="title">Óptica Cristal</div>
-        <div class="addr">San Miguel · Argentina</div>
-      </div>
+      <div class="title">Óptica Cristal</div>
+      <div class="sub">San Miguel · Argentina</div>
     </div>
     <div class="nro">
-      <div class="label">N° Trabajo</div>
-      <div class="value mono">${d.numero}</div>
+      <div class="lbl">N° TRABAJO</div>
+      <div class="val mono">${d.numero}</div>
     </div>
   </header>
 
@@ -130,20 +115,32 @@ function renderSheet(d) {
     <div class="kv"><div class="k">Cliente</div><div class="v">${d.cliente}</div></div>
     <div class="kv"><div class="k">DNI</div><div class="v mono">${d.dni}</div></div>
     <div class="kv"><div class="k">Teléfono</div><div class="v mono">${d.tel}</div></div>
-    <div class="kv"><div class="k">Fecha</div><div class="v mono">${d.fechaEnc}</div></div>
-    <div class="kv"><div class="k">Retira</div><div class="v mono">${d.fechaRetira}</div></div>
+    <div class="kv"><div class="k">Fecha</div><div class="v mono">${d.fecha}</div></div>
+    <div class="kv"><div class="k">Retira</div><div class="v mono">${d.retira}</div></div>
+    <div class="kv"><div class="k">Entrega</div><div class="v">${d.entrega}</div></div>
+  </section>
+
+  <section class="grid2 dtl">
+    <div class="kv"><div class="k">Cristal</div><div class="v">${d.cristal}</div></div>
+    <div class="kv"><div class="k">Dist. Focal</div><div class="v">${d.distFocal}</div></div>
+    <div class="kv"><div class="k">Armazón Nº</div><div class="v mono">${d.armazonNum}</div></div>
+    <div class="kv"><div class="k">Detalle</div><div class="v">${d.armazonDet}</div></div>
+    <div class="kv"><div class="k">DNP</div><div class="v mono">${d.dnp}</div></div>
+    <div class="kv"><div class="k">ADD</div><div class="v mono">${d.add}</div></div>
+    <div class="kv"><div class="k">DR</div><div class="v">${d.dr}</div></div>
+    <div class="kv"><div class="k">Pago</div><div class="v">${d.formaPago}</div></div>
   </section>
 
   <section class="grades">
     <div class="box">
-      <div class="box-title">Graduación OD</div>
+      <div class="box-t">OD</div>
       <table class="tbl">
         <tr><th>ESF</th><th>CIL</th><th>EJE</th></tr>
         <tr><td class="mono">${d.od_esf}</td><td class="mono">${d.od_cil}</td><td class="mono">${d.od_eje}</td></tr>
       </table>
     </div>
     <div class="box">
-      <div class="box-title">Graduación OI</div>
+      <div class="box-t">OI</div>
       <table class="tbl">
         <tr><th>ESF</th><th>CIL</th><th>EJE</th></tr>
         <tr><td class="mono">${d.oi_esf}</td><td class="mono">${d.oi_cil}</td><td class="mono">${d.oi_eje}</td></tr>
@@ -151,57 +148,74 @@ function renderSheet(d) {
     </div>
   </section>
 
-  <section class="grid2 details">
-    <div class="kv"><div class="k">Cristal</div><div class="v">${d.cristal}</div></div>
-    <div class="kv"><div class="k">Armazón</div><div class="v mono">${d.nArmazon}</div></div>
-    <div class="kv"><div class="k">Detalle armazón</div><div class="v">${d.detArmazon}</div></div>
-    <div class="kv"><div class="k">Distancia focal</div><div class="v">${d.distFocal}</div></div>
-    <div class="kv"><div class="k">ADD</div><div class="v mono">${d.add}</div></div>
-    <div class="kv"><div class="k">DNP</div><div class="v mono">${d.dnp}</div></div>
-    <div class="kv"><div class="k">Entrega</div><div class="v">${d.entregaTxt}</div></div>
-    <div class="kv"><div class="k">Vendedor</div><div class="v">${d.vendedor}</div></div>
-  </section>
-
-  <section class="grid2 totals">
-    <div class="kv"><div class="k">Precio cristal</div><div class="v mono">${d.precioCristal}</div></div>
-    <div class="kv"><div class="k">Precio armazón</div><div class="v mono">${d.precioArmazon}</div></div>
+  <section class="totals">
+    <div class="kv"><div class="k">Cristal</div><div class="v mono">${d.precioCristal}</div></div>
+    <div class="kv"><div class="k">Armazón</div><div class="v mono">${d.precioArmazon}</div></div>
     <div class="kv"><div class="k">Obra social</div><div class="v mono">${d.obraSocial}</div></div>
     <div class="kv"><div class="k">Seña</div><div class="v mono">${d.sena}</div></div>
-    <div class="kv total"><div class="k">TOTAL</div><div class="v mono">${d.total}</div></div>
-    <div class="kv saldo"><div class="k">Saldo</div><div class="v mono">${d.saldo}</div></div>
+    <div class="kv"><div class="k">Saldo</div><div class="v mono">${d.saldo}</div></div>
+    <div class="total-line">TOTAL: <span class="mono">${d.total}</span></div>
   </section>
 </div>`;
 }
 
-// ---------- impresión ----------
-function _ensurePrintHost() {
-  let host = document.getElementById('__PRINT__');
-  if (!host) {
-    host = document.createElement('div');
-    host.id = '__PRINT__';
-    host.className = 'print-host print-only';
-    document.body.appendChild(host);
-  }
-  return host;
+// ===== Ventana de impresión (CSS embebido con @page 155×130) =====
+function printInPopup(html) {
+  const w = window.open('', '_blank', 'noopener,noreferrer');
+  if (!w) { alert('Desbloqueá las ventanas emergentes para imprimir.'); return; }
+
+  const css = `
+  <style>
+    @page { size: 155mm 130mm; margin: 5mm; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+    html, body { background:#fff; }
+    body { font: 9.5pt/1.25 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; color:#111; }
+
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
+    .ticket { width: 145mm; box-sizing: border-box; }
+
+    .hdr { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 2.5mm; }
+    .title { font-weight:700; font-size: 11pt; }
+    .sub { color:#666; font-size: 8.5pt; margin-top: 0.5mm; }
+    .nro .lbl { font-size:8pt; color:#666; }
+    .nro .val { font-size: 12pt; font-weight: 700; }
+
+    .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap: 2mm 4mm; }
+    .kv { display:grid; grid-template-columns: 24mm 1fr; column-gap: 2mm; align-items: baseline; }
+    .kv .k { color:#555; font-size: 8.5pt; }
+    .kv .v { font-weight: 600; min-height: 10pt; }
+
+    .dtl { margin-top: 1mm; }
+
+    .grades { display:grid; grid-template-columns: 1fr 1fr; gap: 3mm; margin: 2mm 0; }
+    .box { border: 1px solid #d8dbe0; border-radius: 1mm; overflow:hidden; }
+    .box-t { background:#f2f4f7; padding: 1mm 2mm; font-weight:700; font-size:9pt; }
+    .tbl { width: 100%; border-collapse: collapse; }
+    .tbl th, .tbl td { border-top: 1px solid #e5e7eb; padding: 1mm 1.5mm; text-align: center; font-size: 9pt; }
+
+    .totals { margin-top: 1mm; display:grid; grid-template-columns: 1fr 1fr; gap: 1mm 4mm; }
+    .totals .kv .k { font-size: 8.5pt; }
+    .totals .kv .v { font-weight: 700; }
+    .total-line { grid-column: 1 / -1; text-align:right; font-weight:800; font-size: 12pt; border-top: 1px dashed #bbb; padding-top: 1.5mm; margin-top: .5mm; }
+  </style>`;
+
+  w.document.open();
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8">${css}</head><body>${html}</body></html>`);
+  w.document.close();
+
+  // Imprimir cuando cargue el contenido
+  w.onload = () => { try { w.focus(); w.print(); } catch {} setTimeout(()=>{ try{ w.close(); }catch{} }, 300); };
 }
 
-/** Export 1: imprime un HTML que vos le pases (compat con guardar.js) */
-export function renderAndPrint(html) {
-  const host = _ensurePrintHost();
-  host.innerHTML = html;
-  requestAnimationFrame(() => {
-    window.print();
-    setTimeout(() => { host.innerHTML = ''; }, 1000);
-  });
-}
-
-/** Export 2: arma la hoja desde el formulario y la imprime */
+// ===== API pública =====
 export function buildAndPrintFromForm() {
-  const data = collectData();
-  const sheet = renderSheet(data);
-  renderAndPrint(sheet);
+  const data = collectForm();
+  const html = renderTicket(data);
+  printInPopup(html);
 }
 
-// Exponer también como globales (por si los llamás sin import)
-window.__renderAndPrint   = renderAndPrint;
-window.__buildPrintArea   = buildAndPrintFromForm;
+// compat con main.js (que llama a window.__buildPrintArea)
+window.__buildPrintArea = buildAndPrintFromForm;
+// Por si alguna parte usa esto:
+window.__renderAndPrint = (html) => printInPopup(html);
