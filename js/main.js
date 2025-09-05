@@ -671,33 +671,77 @@ document.addEventListener('DOMContentLoaded', () => {
     dnp.addEventListener('input', ()=> dnp.value = fmt(dnp.value));
   }
 
-  // Botones
-  const btnImp=$('btn-imprimir'); if(btnImp) btnImp.addEventListener('click', buildPrintArea);
-  const btnClr=$('btn-limpiar'); if(btnClr) btnClr.addEventListener('click', limpiarFormulario);
+    // Botones
+  const btnImp = $('btn-imprimir'); 
+  if (btnImp) {
+    // IMPRIMIR SOLAMENTE (no guarda, no sube, no Telegram)
+    btnImp.addEventListener('click', (e) => {
+      e.preventDefault();
+      if (typeof window.__buildPrintArea === 'function') {
+        window.__buildPrintArea();
+      } else if (window.buildAndPrintFromForm) {
+        window.buildAndPrintFromForm();
+      }
+    });
+  }
+
+  const btnClr = $('btn-limpiar'); 
+  if (btnClr) btnClr.addEventListener('click', limpiarFormulario);
 
   // Guardar
-  const form=$('formulario');
+  const form = $('formulario');
 
   // Bloquear submit con Enter — solo click guarda
   bloquearSubmitConEnter(form);
 
-  if(form){
-    form.addEventListener('submit', async (e)=>{
+  if (form) {
+    form.addEventListener('submit', async (e) => {
       e.preventDefault();
-      if(!validarEjesRequeridos()) return;
+      if (!validarEjesRequeridos()) return;
 
       const progress = progressAPI(PROGRESS_STEPS);
       progress.autoAdvance(6000);
 
-      try{
-        await guardarTrabajo({ progress });
-        progress.doneAndHide(800);
-      } catch (err){
+      try {
+        // 👇 guardar.js debe devolver { ok:true, pdfUrl, driveId, telegramMsgId }
+        const res = await guardarTrabajo({ progress });
+
+        progress.doneAndHide(500);
+
+        const pdfUrl = res?.pdfUrl || window.__LAST_PDF_URL || null;
+
+        // Diálogo post-guardado: Imprimir / Abrir PDF / Cerrar
+        const opts = {
+          icon: 'success',
+          title: 'Trabajo guardado',
+          html: `
+            <div style="font-size:14px;line-height:1.4">
+              Se generó el PDF, se subió a Drive y se envió por Telegram.
+              ${pdfUrl ? `<div style="margin-top:8px"><a href="${pdfUrl}" target="_blank" rel="noopener">Abrir PDF</a></div>` : ''}
+            </div>
+          `,
+          showCancelButton: true,
+          showDenyButton: !!pdfUrl,
+          confirmButtonText: 'Imprimir',
+          cancelButtonText: 'Cerrar',
+          denyButtonText: 'Abrir PDF'
+        };
+
+        const r = await (window.Swal ? Swal.fire(opts) : Promise.resolve({}));
+        if (r?.isConfirmed) {
+          // Imprimir
+          if (typeof window.__buildPrintArea === 'function') window.__buildPrintArea();
+          else if (window.buildAndPrintFromForm) window.buildAndPrintFromForm();
+        } else if (r?.isDenied && pdfUrl) {
+          // Abrir PDF
+          window.open(pdfUrl, '_blank', 'noopener');
+        }
+      } catch (err) {
         console.error(err);
         progress.fail(err?.message || 'Error al guardar');
       }
     });
   }
-});
+
 
 export { generarNumeroTrabajoDesdeTelefono, recalcularFechaRetiro };
