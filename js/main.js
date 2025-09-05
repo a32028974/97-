@@ -1,7 +1,7 @@
 // /js/main.js — v2025-09-05 (todo en uno: UI + progreso + fechas + graduaciones + imprimir/guardar)
 
 // ===== Imports =====
-import './print.js';
+import './print.js?v=2025-09-05h';
 import { sanitizePrice, parseMoney } from './utils.js';
 import { obtenerNumeroTrabajoDesdeTelefono } from './numeroTrabajo.js';
 import { cargarFechaHoy } from './fechaHoy.js';
