@@ -1,6 +1,6 @@
-// /js/print.js — v2025-09-05d
-// Ticket 155×130 mm, sin fotos — imprime en un IFRAME oculto (sin popups)
-// + Código de barras Code128 (Libre Barcode 128) centrado 65×10 mm
+// /js/print.js — v2025-09-05e
+// Ticket 155×130 mm, sin fotos — imprime en IFRAME (sin popups)
+// Código de barras Code128 (SVG vía JsBarcode) 65×10 mm centrado
 
 // ===== Helpers DOM & formatos =====
 const $ = (id) => document.getElementById(id);
@@ -107,7 +107,7 @@ function renderTicket(d) {
 
     <!-- Código de barras centrado 65×10 mm -->
     <div class="barwrap">
-      <div class="barcode">${d.numero || ''}</div>
+      <svg id="barcode" aria-label="Código de barras"></svg>
     </div>
 
     <div class="nro">
@@ -164,12 +164,8 @@ function renderTicket(d) {
 </div>`;
 }
 
-// ===== Imprimir en IFRAME oculto =====
-function printInIframe(htmlInner) {
-  // Incluimos la fuente Code 128
-  const fonts = `
-  <link href="https://fonts.googleapis.com/css2?family=Libre+Barcode+128&display=swap" rel="stylesheet">`;
-
+// ===== Imprimir en IFRAME oculto (c/ JsBarcode) =====
+function printInIframe(htmlInner, numero) {
   const css = `
   <style>
     @page { size: 155mm 130mm; margin: 5mm; }
@@ -190,12 +186,8 @@ function printInIframe(htmlInner) {
     .nro .val { font-size: 12pt; font-weight: 700; }
 
     /* Barcode centrado, exactamente 65×10 mm */
-    .barwrap { width:65mm; height:10mm; display:flex; align-items:center; justify-content:center; }
-    .barcode {
-      font-family: 'Libre Barcode 128', cursive;
-      font-size: 10mm; line-height: 10mm; height:10mm; overflow: hidden;
-      letter-spacing: 0; white-space: nowrap;
-    }
+    .barwrap { width:55mm; height:8mm; display:flex; align-items:center; justify-content:center; }
+    .barwrap svg { width:65mm; height:10mm; }
 
     .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap: 2mm 4mm; }
     .kv { display:grid; grid-template-columns: 24mm 1fr; column-gap: 2mm; align-items: baseline; }
@@ -223,22 +215,50 @@ function printInIframe(htmlInner) {
 
   const doc = ifr.contentDocument || ifr.contentWindow.document;
   doc.open();
-  doc.write(`<!doctype html><html><head><meta charset="utf-8">${fonts}${css}</head><body>${htmlInner}</body></html>`);
+  doc.write(`<!doctype html><html><head><meta charset="utf-8">${css}</head><body>${htmlInner}</body></html>`);
   doc.close();
 
-  // imprimir
   const w = ifr.contentWindow;
-  const cleanup = () => { setTimeout(()=>{ try { document.body.removeChild(ifr); } catch{} }, 100); };
-  w.addEventListener?.('afterprint', cleanup);
-  setTimeout(() => { try { w.focus(); w.print(); } catch {} setTimeout(cleanup, 500); }, 60);
+
+  // Inyectar JsBarcode y renderizar el SVG
+  const render = () => {
+    try {
+      const svg = doc.getElementById('barcode');
+      if (w.JsBarcode && svg) {
+        w.JsBarcode(svg, String(numero || ''), {
+          format: 'CODE128',
+          displayValue: false,
+          margin: 0,
+          height: 40, // alto en px (no afecta: el CSS fija 10mm)
+        });
+      } else if (svg) {
+        // fallback: texto simple si no cargó la lib
+        svg.outerHTML = `<div style="font-weight:700;text-align:center">${numero || ''}</div>`;
+      }
+    } catch (_) {}
+    // imprimir
+    const cleanup = () => { setTimeout(()=>{ try { document.body.removeChild(ifr); } catch{} }, 100); };
+    w.addEventListener?.('afterprint', cleanup);
+    setTimeout(() => { try { w.focus(); w.print(); } catch {} setTimeout(cleanup, 500); }, 50);
+  };
+
+  if (w.JsBarcode) {
+    render();
+  } else {
+    const s = doc.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js';
+    s.onload = render;
+    s.onerror = render; // imprime sin barras, pero no se frena
+    doc.head.appendChild(s);
+  }
 }
 
 // ===== API pública =====
 export function buildAndPrintFromForm() {
   const data = collectForm();
   const html = renderTicket(data);
-  printInIframe(html);
+  printInIframe(html, data.numero);
 }
 
 window.__buildPrintArea = buildAndPrintFromForm;
-window.__renderAndPrint = (html) => printInIframe(html);
+window.__renderAndPrint = (html) => printInIframe(html, '');
