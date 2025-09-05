@@ -1,4 +1,4 @@
-// /historial/historial.js — v7 (live search + 30 últimos + “Cargar” + fechas dd/mm/aa)
+// /historial/historial.js — v8 (compacto + iconos + fechas dd/mm/aa)
 import { API_URL as BASE } from '../js/api.js';
 const API_URL = BASE;
 
@@ -6,7 +6,7 @@ const API_URL = BASE;
 const $  = (s) => document.querySelector(s);
 function setSpin(on){ const sp = $('#spinner'); if (sp) sp.hidden = !on; }
 function setStatus(msg){ const el = $('#status'); if (el) el.innerHTML = msg || ''; }
-function showEmpty(show){ const el = $('#empty'); if (el) el.hidden = !show; }
+function showEmpty(show){ const el = $('#empty'); el && (el.hidden = !show); }
 
 // ---------- estado ----------
 let ALL_ROWS = [];
@@ -34,14 +34,11 @@ function normalizeRows(list){
   })));
 }
 
-// ---------- formato de fechas (dd/mm/aa para mostrar) ----------
+// ---------- formato fechas dd/mm/aa ----------
 function toDate(val){
   if (!val) return null;
   if (val instanceof Date) return isNaN(val) ? null : val;
-
   const s = String(val).trim();
-
-  // dd/mm/yy o dd/mm/yyyy
   const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
   if (m){
     const dd = m[1].padStart(2,'0');
@@ -50,8 +47,6 @@ function toDate(val){
     const d = new Date(Number(yyyy), Number(mm)-1, Number(dd));
     return isNaN(d) ? null : d;
   }
-
-  // ISO u otros strings parseables por Date
   const d2 = new Date(s);
   return isNaN(d2) ? null : d2;
 }
@@ -66,9 +61,55 @@ function formatFecha(val){
   return d ? fmtDDMMYY(d) : (val ?? '');
 }
 
+// ---------- estilos compactos (inyectados) ----------
+function ensureCompactStyles(){
+  if (document.getElementById('hist-compact-css')) return;
+  const css = `
+    /* tabla compacta */
+    table#tabla, #tabla { border-collapse: collapse; }
+    #tabla tbody tr { border-bottom: 1px solid #eee; }
+    #tabla td { padding: 6px 8px; vertical-align: middle; }
+    /* acciones como iconos */
+    .actions { white-space: nowrap; display: flex; align-items: center; gap: 8px; }
+    .icon-btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 34px; height: 34px; border-radius: 8px; border: 1px solid #e5e7eb;
+      background: #fff; cursor: pointer; padding: 0;
+    }
+    .icon-btn.primary { background:#2563eb; border-color:#2563eb; }
+    .icon-btn.primary svg { filter: brightness(0) invert(1); }
+    .icon-btn:disabled { opacity:.5; cursor: not-allowed; }
+    .icon-btn svg { width: 18px; height: 18px; }
+    /* reducir aún más margen entre filas en pantallas angostas */
+    @media (max-width: 640px){
+      #tabla td { padding: 5px 6px; }
+      .icon-btn { width: 30px; height: 30px; }
+    }
+  `.trim();
+  const style = document.createElement('style');
+  style.id = 'hist-compact-css';
+  style.textContent = css;
+  document.head.appendChild(style);
+}
+
+// ---------- iconos (SVG inline) ----------
+const ICONS = {
+  cargar: `
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 3a1 1 0 0 1 1 1v8.586l2.293-2.293a1 1 0 1 1 1.414 1.414l-4.007 4.007a1 1 0 0 1-1.414 0L7.279 11.707a1 1 0 1 1 1.414-1.414L11 12.586V4a1 1 0 0 1 1-1z"/>
+      <path d="M5 19a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3a1 1 0 1 0-2 0v3H7v-3a1 1 0 1 0-2 0v3z"/>
+    </svg>`,
+  abrir: `
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M14 3h5a1 1 0 0 1 1 1v5a1 1 0 1 1-2 0V6.414l-7.293 7.293a1 1 0 0 1-1.414-1.414L16.586 5H14a1 1 0 1 1 0-2z"/>
+      <path d="M5 5h6a1 1 0 1 1 0 2H6v11h11v-5a1 1 0 1 1 2 0v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/>
+    </svg>`
+};
+
 // ---------- render ----------
 function renderPage(){
   const tbody = $('#tbody');
+  if (!tbody) return;
   tbody.innerHTML = '';
 
   if (!FILTERED.length){
@@ -101,11 +142,13 @@ function renderPage(){
       <td>${r.dist_focal}</td>
       <td>${r.vendedor}</td>
       <td>${r.telefono}</td>
-      <td class="row" style="gap:6px; white-space:nowrap">
-        <button class="btn" data-act="fill" data-abs-idx="${start + i}">Cargar</button>
-        <button class="btn-secondary" ${r.pdf?'':'disabled'} data-act="open"  data-pdf="${r.pdf||''}">Abrir</button>
-        <button class="btn-secondary" ${r.pdf?'':'disabled'} data-act="print" data-pdf="${r.pdf||''}">Imprimir</button>
-        <button class="btn-secondary" ${r.pdf?'':'disabled'} data-act="copy"  data-pdf="${r.pdf||''}">Copiar link</button>
+      <td class="actions">
+        <button class="icon-btn primary" title="Cargar" data-act="fill" data-abs-idx="${start + i}">
+          ${ICONS.cargar}
+        </button>
+        <button class="icon-btn" title="Abrir PDF" ${r.pdf?'':'disabled'} data-act="open" data-pdf="${r.pdf||''}">
+          ${ICONS.abrir}
+        </button>
       </td>
     `;
     frag.appendChild(tr);
@@ -127,18 +170,10 @@ function renderPage(){
         window.location.href = '../index.html#prefill';
         return;
       }
-      const pdf = btn.getAttribute('data-pdf');
-      if (!pdf) return;
-      if (act==='open'){
+      if (act === 'open'){
+        const pdf = btn.getAttribute('data-pdf');
+        if (!pdf) return;
         window.open(pdf, '_blank', 'noopener');
-      } else if (act==='print'){
-        const w = window.open(pdf, '_blank', 'noopener'); if (!w) return;
-        const tryPrint = () => { try { w.focus(); w.print(); } catch(_){} };
-        w.onload = tryPrint; setTimeout(tryPrint, 1200);
-      } else if (act==='copy'){
-        navigator.clipboard.writeText(pdf).then(()=>{
-          if (window.Swal) Swal.fire({toast:true, position:'top', timer:1200, showConfirmButton:false, icon:'success', title:'Link copiado'});
-        });
       }
     });
   });
@@ -151,14 +186,14 @@ document.getElementById('tbody')?.addEventListener('click', (e)=>{
   if (btn) btn.click();
 });
 
-// ---------- sin filtros (siempre todo)
+// ---------- sin filtros ----------
 function applyFilters(){
   FILTERED = [...ALL_ROWS];
   page = 1;
   renderPage();
 }
 
-// ---------- parser robusto (por si viene envuelto en <pre> o con XSSI)
+// ---------- parser robusto ----------
 function parsePossiblyWrappedJSON(raw) {
   if (!raw) return null;
   let txt = String(raw).trim();
@@ -235,11 +270,12 @@ function liveSearch(){
 
 // ---------- init ----------
 function attach(){
-  // oculto (por si quedó en el HTML)
+  ensureCompactStyles();
+
   const pdfOnlyWrap = $('#pdfOnly')?.closest('label, .chk, div');
   if (pdfOnlyWrap) pdfOnlyWrap.style.display = 'none';
 
-  $('#btnBuscar')?.addEventListener('click', e => { e.preventDefault(); /* ya no se usa */ });
+  $('#btnBuscar')?.addEventListener('click', e => { e.preventDefault(); });
   $('#q')?.addEventListener('input', liveSearch);
   $('#q')?.addEventListener('keydown', (e)=>{ if (e.key === 'Enter') e.preventDefault(); });
   $('#btnLimpiar')?.addEventListener('click', ()=>{ $('#q').value=''; liveSearch(); });
