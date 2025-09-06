@@ -36,7 +36,9 @@ body{
 .brand{ display:flex; align-items:center; gap:10px; }
 .brand img{ width:40px; height:40px; object-fit:contain; border-radius:8px; }
 h1{ margin:0; font-size:clamp(18px,2.2vw,22px); }
-.small{ font-size:12px; } .muted{ color:var(--muted); }
+.small{ font-size:12px; }
+.muted{ color:var(--muted); }
+.mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
 
 /* ========== Grids utilitarias ========== */
 .grid{ display:grid; gap:var(--gap); }
@@ -237,13 +239,9 @@ button.ghost{ background:#eef2ff; color:var(--brand); }
   input,select,textarea,button{ -webkit-print-color-adjust:exact; print-color-adjust:exact; }
 }
 
-/* en tu css/estilos.css */
-#historial { margin-top: 10px; }
-#hist-lista { display: grid; gap: 6px; }
-.hist-item {
-  text-align: left; background: transparent; border: 0;
-  border-bottom: 1px dashed #ddd; padding: 4px 0; cursor: pointer;
-}
-.hist-item:hover { background: #f7f8fa; }
-.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
-.muted { opacity: .7; }
+/* Utilidades finales */
+#print-root[hidden]{ display:none !important; }
+.money > input{ text-align:right; }
+input#od_eje, input#oi_eje{ transition: border-color .15s ease; }
+.galeria{ grid-template-columns: repeat(auto-fill, minmax(110px,1fr)); gap:10px; }
+.actions .ghost{ border:1px solid #e5e7eb; }
