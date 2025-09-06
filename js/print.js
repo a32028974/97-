@@ -117,21 +117,16 @@
 
   // ===== HTML del ticket =====
   function renderTicket(d) {
-    return `
+  return `
 <div class="sheet">
-  <!-- Contenido del ticket desplazado (nudge) dentro de la “hoja” -->
+  <!-- TICKET PRINCIPAL -->
   <div class="ticket" style="transform: translate(${NUDGE_LEFT_MM}mm, ${NUDGE_TOP_MM}mm);">
     <header class="hdr">
       <div class="brand">
         <div class="title">Óptica Cristal</div>
         <div class="sub">San Miguel · Argentina</div>
       </div>
-
-      <!-- Código de barras centrado -->
-      <div class="barwrap">
-        <svg id="barcode" aria-label="Código de barras"></svg>
-      </div>
-
+      <div class="barwrap"><svg id="barcode" aria-label="Código de barras"></svg></div>
       <div class="nro">
         <div class="lbl">N° TRABAJO</div>
         <div class="val mono">${d.numero}</div>
@@ -184,8 +179,23 @@
       <div class="total-line">TOTAL: <span class="mono">${d.total}</span></div>
     </section>
   </div>
+
+  <!-- LÍNEA DE CORTE -->
+  <div class="cutline"></div>
+
+  <!-- TALÓN DE RETIRO -->
+  <div class="coupon">
+    <div class="c-head">
+      <div class="c-brand"><strong>Óptica Cristal</strong><br/><span class="mono small">${d.numero}</span></div>
+      <div class="c-bar"><svg id="barcode2" aria-label="Código de barras talón"></svg></div>
+    </div>
+    <div class="c-row"><div class="c-k">Cliente</div><div class="c-v">${d.cliente}</div></div>
+    <div class="c-row"><div class="c-k">Retira</div><div class="c-v mono">${d.retira}</div></div>
+    <div class="c-row"><div class="c-k">Teléfono</div><div class="c-v mono">${d.tel}</div></div>
+    <div class="c-row"><div class="c-k">Total</div><div class="c-v mono">${d.total}</div></div>
+  </div>
 </div>`;
-  }
+}
 
   // ===== Imprimir en IFRAME (con JsBarcode) =====
   function printInIframe(htmlInner, numero) {
