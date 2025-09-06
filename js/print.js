@@ -1,24 +1,28 @@
-// /js/print.js — v2025-09-05h
-// Ticket vertical 130×155 mm. Auto-nudge para móviles/tablets (sin tocar diálogo de print)
+// /js/print.js — v2025-09-06 (ticket + talón lateral)
+// Ticket vertical 130×155 mm. Auto-nudge para móviles/tablets.
 // Barcode Code128 (SVG, 55×8 mm). IFRAME, sin popups.
 
 (function () {
-  // ===== Parámetros base del ticket =====
-  const PAGE_W_MM = 130;   // ancho
-  const PAGE_H_MM = 155;   // alto
-  const BAR_W_MM  = 55;    // barcode ancho
-  const BAR_H_MM  = 8;     // barcode alto
+  // ===== Parámetros base de página/ticket =====
+  const PAGE_W_MM = 130;   // ancho hoja
+  const PAGE_H_MM = 155;   // alto  hoja
+  const BAR_W_MM  = 55;    // ancho barcode principal (en mm)
+  const BAR_H_MM  = 8;     // alto  barcode principal (en mm)
+
+  // Layout de columnas (ticket izquierda + talón derecha)
+  const LEFT_W_MM = 88;    // ancho de la columna izquierda (ticket)
+  const GAP_MM    = 3;     // espacio entre columnas
+  const RIGHT_W_MM = PAGE_W_MM - LEFT_W_MM - GAP_MM; // ancho talón
 
   // ===== Detección simple de móvil/tablet =====
   const UA = navigator.userAgent || '';
   const IS_MOBILE = /Android|iPhone|iPad|iPod/i.test(UA);
 
-  // ===== Auto-nudge (desplazamiento para compensar encabezados/márgenes por defecto)
-  // Valores conservadores que funcionan bien en Android/Chrome y la mayoría de drivers
+  // ===== Auto-nudge (para compensar encabezados/márgenes por defecto)
   const NUDGE_TOP_MM  = IS_MOBILE ? -12 : 0; // desplazar hacia arriba
   const NUDGE_LEFT_MM = IS_MOBILE ? -8  : 0; // desplazar hacia la izquierda
 
-  // Para evitar recorte por aplicar nudge negativo, ampliamos “virtualmente” el canvas de página
+  // Ampliamos “virtualmente” el canvas para que el nudge negativo no recorte
   const EXTRA_W_MM = Math.max(0, -NUDGE_LEFT_MM);
   const EXTRA_H_MM = Math.max(0, -NUDGE_TOP_MM);
 
@@ -115,150 +119,186 @@
     };
   }
 
-  // ===== HTML del ticket =====
+  // ===== HTML (ticket izquierda + talón derecha) =====
   function renderTicket(d) {
-  return `
+    return `
 <div class="sheet">
-  <!-- TICKET PRINCIPAL -->
-  <div class="ticket" style="transform: translate(${NUDGE_LEFT_MM}mm, ${NUDGE_TOP_MM}mm);">
-    <header class="hdr">
-      <div class="brand">
-        <div class="title">Óptica Cristal</div>
-        <div class="sub">San Miguel · Argentina</div>
-      </div>
-      <div class="barwrap"><svg id="barcode" aria-label="Código de barras"></svg></div>
-      <div class="nro">
-        <div class="lbl">N° TRABAJO</div>
-        <div class="val mono">${d.numero}</div>
-      </div>
-    </header>
+  <!-- Columna izquierda: TICKET -->
+  <div class="col-left">
+    <div class="ticket">
+      <header class="hdr">
+        <div class="brand">
+          <div class="title">Óptica Cristal</div>
+          <div class="sub">San Miguel · Argentina</div>
+        </div>
+        <div class="barwrap"><svg id="barcode" aria-label="Código de barras"></svg></div>
+        <div class="nro">
+          <div class="lbl">N° TRABAJO</div>
+          <div class="val mono">${d.numero}</div>
+        </div>
+      </header>
 
-    <section class="grid2 info">
-      <div class="kv"><div class="k">Cliente</div><div class="v">${d.cliente}</div></div>
-      <div class="kv"><div class="k">DNI</div><div class="v mono">${d.dni}</div></div>
-      <div class="kv"><div class="k">Teléfono</div><div class="v mono">${d.tel}</div></div>
-      <div class="kv"><div class="k">Fecha</div><div class="v mono">${d.fecha}</div></div>
-      <div class="kv"><div class="k">Retira</div><div class="v mono">${d.retira}</div></div>
-      <div class="kv"><div class="k">Entrega</div><div class="v">${d.entrega}</div></div>
-    </section>
+      <section class="grid2 info">
+        <div class="kv"><div class="k">Cliente</div><div class="v">${d.cliente}</div></div>
+        <div class="kv"><div class="k">DNI</div><div class="v mono">${d.dni}</div></div>
+        <div class="kv"><div class="k">Teléfono</div><div class="v mono">${d.tel}</div></div>
+        <div class="kv"><div class="k">Fecha</div><div class="v mono">${d.fecha}</div></div>
+        <div class="kv"><div class="k">Retira</div><div class="v mono">${d.retira}</div></div>
+        <div class="kv"><div class="k">Entrega</div><div class="v">${d.entrega}</div></div>
+      </section>
 
-    <section class="grid2 dtl">
-      <div class="kv"><div class="k">Cristal</div><div class="v">${d.cristal}</div></div>
-      <div class="kv"><div class="k">Dist. Focal</div><div class="v">${d.distFocal}</div></div>
-      <div class="kv"><div class="k">Armazón Nº</div><div class="v mono">${d.armazonNum}</div></div>
-      <div class="kv"><div class="k">Detalle</div><div class="v">${d.armazonDet}</div></div>
-      <div class="kv"><div class="k">DNP</div><div class="v mono">${d.dnp}</div></div>
-      <div class="kv"><div class="k">ADD</div><div class="v mono">${d.add}</div></div>
-      <div class="kv"><div class="k">DR</div><div class="v">${d.dr}</div></div>
-      <div class="kv"><div class="k">Pago</div><div class="v">${d.formaPago}</div></div>
-    </section>
+      <section class="grid2 dtl">
+        <div class="kv"><div class="k">Cristal</div><div class="v">${d.cristal}</div></div>
+        <div class="kv"><div class="k">Dist. Focal</div><div class="v">${d.distFocal}</div></div>
+        <div class="kv"><div class="k">Armazón Nº</div><div class="v mono">${d.armazonNum}</div></div>
+        <div class="kv"><div class="k">Detalle</div><div class="v">${d.armazonDet}</div></div>
+        <div class="kv"><div class="k">DNP</div><div class="v mono">${d.dnp}</div></div>
+        <div class="kv"><div class="k">ADD</div><div class="v mono">${d.add}</div></div>
+        <div class="kv"><div class="k">DR</div><div class="v">${d.dr}</div></div>
+        <div class="kv"><div class="k">Pago</div><div class="v">${d.formaPago}</div></div>
+      </section>
 
-    <section class="grades">
-      <div class="box">
-        <div class="box-t">OD</div>
-        <table class="tbl">
-          <tr><th>ESF</th><th>CIL</th><th>EJE</th></tr>
-          <tr><td class="mono">${d.od_esf}</td><td class="mono">${d.od_cil}</td><td class="mono">${d.od_eje}</td></tr>
-        </table>
-      </div>
-      <div class="box">
-        <div class="box-t">OI</div>
-        <table class="tbl">
-          <tr><th>ESF</th><th>CIL</th><th>EJE</th></tr>
-          <tr><td class="mono">${d.oi_esf}</td><td class="mono">${d.oi_cil}</td><td class="mono">${d.oi_eje}</td></tr>
-        </table>
-      </div>
-    </section>
+      <section class="grades">
+        <div class="box">
+          <div class="box-t">OD</div>
+          <table class="tbl">
+            <tr><th>ESF</th><th>CIL</th><th>EJE</th></tr>
+            <tr><td class="mono">${d.od_esf}</td><td class="mono">${d.od_cil}</td><td class="mono">${d.od_eje}</td></tr>
+          </table>
+        </div>
+        <div class="box">
+          <div class="box-t">OI</div>
+          <table class="tbl">
+            <tr><th>ESF</th><th>CIL</th><th>EJE</th></tr>
+            <tr><td class="mono">${d.oi_esf}</td><td class="mono">${d.oi_cil}</td><td class="mono">${d.oi_eje}</td></tr>
+          </table>
+        </div>
+      </section>
 
-    <section class="totals">
-      <div class="kv"><div class="k">Cristal</div><div class="v mono">${d.precioCristal}</div></div>
-      <div class="kv"><div class="k">Armazón</div><div class="v mono">${d.precioArmazon}</div></div>
-      <div class="kv"><div class="k">Obra social</div><div class="v mono">${d.obraSocial}</div></div>
-      <div class="kv"><div class="k">Seña</div><div class="v mono">${d.sena}</div></div>
-      <div class="kv"><div class="k">Saldo</div><div class="v mono">${d.saldo}</div></div>
-      <div class="total-line">TOTAL: <span class="mono">${d.total}</span></div>
-    </section>
+      <section class="totals">
+        <div class="kv"><div class="k">Cristal</div><div class="v mono">${d.precioCristal}</div></div>
+        <div class="kv"><div class="k">Armazón</div><div class="v mono">${d.precioArmazon}</div></div>
+        <div class="kv"><div class="k">Obra social</div><div class="v mono">${d.obraSocial}</div></div>
+        <div class="kv"><div class="k">Seña</div><div class="v mono">${d.sena}</div></div>
+        <div class="kv"><div class="k">Saldo</div><div class="v mono">${d.saldo}</div></div>
+        <div class="total-line">TOTAL: <span class="mono">${d.total}</span></div>
+      </section>
+    </div>
   </div>
 
-  <!-- LÍNEA DE CORTE -->
-  <div class="cutline"></div>
+  <!-- Columna derecha: TALÓN LATERAL -->
+  <div class="col-right">
+    <div class="slip">
+      <div class="slip-head">
+        <img class="slip-logo" src="logo.png" alt="Óptica Cristal">
+        <div class="slip-brand">
+          <div class="slip-title">Óptica Cristal</div>
+          <div class="slip-sub">Av R. Balbín 1125 · San Miguel</div>
+          <div class="slip-sub">WhatsApp: 11 5668 9919</div>
+        </div>
+      </div>
 
-  <!-- TALÓN DE RETIRO -->
-  <div class="coupon">
-    <div class="c-head">
-      <div class="c-brand"><strong>Óptica Cristal</strong><br/><span class="mono small">${d.numero}</span></div>
-      <div class="c-bar"><svg id="barcode2" aria-label="Código de barras talón"></svg></div>
+      <div class="slip-row big">
+        <div class="k">N° Trabajo</div><div class="v mono">${d.numero}</div>
+      </div>
+      <div class="slip-row"><div class="k">Cliente</div><div class="v">${d.cliente}</div></div>
+      <div class="slip-row"><div class="k">Encargó</div><div class="v mono">${d.fecha}</div></div>
+      <div class="slip-row"><div class="k">Retira</div><div class="v mono">${d.retira}</div></div>
+
+      <div class="slip-sum">
+        <div class="sl"><span class="k">Total</span><span class="v mono">${d.total}</span></div>
+        <div class="sl"><span class="k">Seña</span><span class="v mono">${d.sena}</span></div>
+        <div class="sl"><span class="k">Saldo</span><span class="v mono">${d.saldo}</span></div>
+      </div>
+
+      <div class="slip-qr">
+        <img src="img/qr-info.png" onerror="this.src='qr.jpg'" alt="QR de información" />
+      </div>
     </div>
-    <div class="c-row"><div class="c-k">Cliente</div><div class="c-v">${d.cliente}</div></div>
-    <div class="c-row"><div class="c-k">Retira</div><div class="c-v mono">${d.retira}</div></div>
-    <div class="c-row"><div class="c-k">Teléfono</div><div class="c-v mono">${d.tel}</div></div>
-    <div class="c-row"><div class="c-k">Total</div><div class="c-v mono">${d.total}</div></div>
   </div>
 </div>`;
-}
+  }
 
   // ===== Imprimir en IFRAME (con JsBarcode) =====
   function printInIframe(htmlInner, numero) {
     const css = `
     <style>
-      /* Aumentamos “virtualmente” el canvas para no recortar al aplicar nudge */
       @page { size: ${PAGE_W_MM + EXTRA_W_MM}mm ${PAGE_H_MM + EXTRA_H_MM}mm; margin: 0; }
-
       * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-
       html, body { background:#fff; margin:0 !important; padding:0 !important; }
-
       body {
         font: 9.5pt/1.25 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
         color:#111;
       }
-
       .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
 
-      /* “Hoja” que ocupa todo el canvas ampliado */
+      /* Hoja completa en grid: ticket izquierda, talón derecha */
       .sheet {
         width: ${PAGE_W_MM + EXTRA_W_MM}mm;
         height: ${PAGE_H_MM + EXTRA_H_MM}mm;
-        position: fixed; top: 0; left: 0;
-        overflow: hidden;
+        position: fixed; top: 0; left: 0; overflow: hidden;
+        display: grid;
+        grid-template-columns: ${LEFT_W_MM}mm ${GAP_MM}mm ${RIGHT_W_MM}mm;
+        grid-template-rows: 100%;
+        transform: translate(${NUDGE_LEFT_MM}mm, ${NUDGE_TOP_MM}mm);
       }
+      .col-left  { grid-column:1; }
+      .col-right { grid-column:3; }
 
-      /* Ticket del tamaño real. Se desplaza con transform (nudge) */
-      .ticket {
-        width: ${PAGE_W_MM}mm;
-        height: ${PAGE_H_MM}mm;
-        box-sizing: border-box;
-      }
-
-      /* Cabecera: brand | barcode | nro */
-      .hdr { display:grid; grid-template-columns: 1fr ${BAR_W_MM}mm 1fr; align-items:flex-start; column-gap: 4mm; margin-bottom: 2.5mm; }
+      /* Ticket (columna izquierda) */
+      .ticket { width:${LEFT_W_MM}mm; height:${PAGE_H_MM}mm; box-sizing:border-box; }
+      .hdr { display:grid; grid-template-columns: 1fr ${BAR_W_MM}mm 1fr; align-items:flex-start; column-gap: 3mm; margin-bottom: 2.5mm; }
       .title { font-weight:700; font-size: 11pt; }
-      .sub { color:#666; font-size: 8.5pt; margin-top: 0.5mm; }
-      .nro { justify-self: end; }
+      .sub   { color:#666; font-size: 8.5pt; margin-top: .5mm; }
+      .nro { justify-self:end; }
       .nro .lbl { font-size:8pt; color:#666; }
-      .nro .val { font-size: 12pt; font-weight: 700; }
+      .nro .val { font-size:12pt; font-weight:700; }
 
-      /* Código de barras 55×8 mm */
       .barwrap { width:${BAR_W_MM}mm; height:${BAR_H_MM}mm; display:flex; align-items:center; justify-content:center; }
       .barwrap svg { width:${BAR_W_MM}mm; height:${BAR_H_MM}mm; }
 
-      .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap: 2mm 4mm; }
-      .kv { display:grid; grid-template-columns: 24mm 1fr; column-gap: 2mm; align-items: baseline; }
+      .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap: 2mm 3mm; }
+      .kv { display:grid; grid-template-columns: 22mm 1fr; column-gap: 2mm; align-items: baseline; }
       .kv .k { color:#555; font-size: 8.5pt; }
       .kv .v { font-weight: 600; min-height: 10pt; }
 
       .dtl { margin-top: 1mm; }
-
       .grades { display:grid; grid-template-columns: 1fr 1fr; gap: 3mm; margin: 2mm 0; }
-      .box { border: 1px solid #d8dbe0; border-radius: 1mm; overflow:hidden; }
+      .box { border: .2mm solid #d8dbe0; border-radius: 1mm; overflow:hidden; }
       .box-t { background:#f2f4f7; padding: 1mm 2mm; font-weight:700; font-size:9pt; }
-      .tbl { width: 100%; border-collapse: collapse; }
-      .tbl th, .tbl td { border-top: 1px solid #e5e7eb; padding: 1mm 1.5mm; text-align: center; font-size: 9pt; }
+      .tbl { width:100%; border-collapse:collapse; }
+      .tbl th, .tbl td { border-top:.2mm solid #e5e7eb; padding: 1mm 1.5mm; text-align:center; font-size:9pt; }
 
-      .totals { margin-top: 1mm; display:grid; grid-template-columns: 1fr 1fr; gap: 1mm 4mm; }
-      .totals .kv .k { font-size: 8.5pt; }
-      .totals .kv .v { font-weight: 700; }
-      .total-line { grid-column: 1 / -1; text-align:right; font-weight:800; font-size: 12pt; border-top: 1px dashed #bbb; padding-top: 1.5mm; margin-top: .5mm; }
+      .totals { margin-top:1mm; display:grid; grid-template-columns: 1fr 1fr; gap: 1mm 3mm; }
+      .totals .kv .k { font-size:8.5pt; }
+      .totals .kv .v { font-weight:700; }
+      .total-line { grid-column:1/-1; text-align:right; font-weight:800; font-size:12pt; border-top:.2mm dashed #bbb; padding-top:1.5mm; margin-top:.5mm; }
+
+      /* Talón lateral (columna derecha) */
+      .slip{
+        width:${RIGHT_W_MM}mm; height:${PAGE_H_MM}mm; box-sizing:border-box;
+        border-left:.3mm dashed #999;  /* guía de corte vertical */
+        padding: 3mm 3mm 2mm 3mm;
+        display:grid; grid-template-rows: auto auto auto 1fr auto; gap: 2.5mm;
+      }
+      .slip-head{ display:grid; grid-template-columns: 12mm 1fr; gap:2mm; align-items:center; }
+      .slip-logo{ width:12mm; height:auto; object-fit:contain; }
+      .slip-title{ font-weight:800; font-size:10pt; }
+      .slip-sub{ font-size:8.5pt; color:#555; line-height:1.2; }
+
+      .slip-row{ display:grid; grid-template-columns: 20mm 1fr; column-gap:2mm; }
+      .slip-row.big .k{ font-size:9pt; }
+      .slip-row.big .v{ font-size:12pt; font-weight:800; }
+      .slip-row .k{ color:#555; font-size:8.5pt; }
+      .slip-row .v{ font-weight:700; }
+
+      .slip-sum{ display:grid; gap:1mm; }
+      .slip-sum .sl{ display:flex; justify-content:space-between; gap:6mm; font-size:10pt; }
+      .slip-sum .sl .k{ font-weight:700; }
+      .slip-sum .sl .v{ font-weight:800; }
+
+      .slip-qr{ align-self:end; text-align:center; }
+      .slip-qr img{ width:${Math.max(28, RIGHT_W_MM - 15)}mm; height:auto; object-fit:contain; }
     </style>`;
 
     const ifr = document.createElement('iframe');
