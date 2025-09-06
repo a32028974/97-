@@ -1,19 +1,20 @@
-// /js/print.js — v2025-09-06b (ficha + talón 130mm alto máx, QR abajo)
-// Imprime en un IFRAME sin popups. Code128 (SVG) para la ficha. Talón sin barcode, con QR.
-
+// /js/print.js — v2025-09-06v (ficha + talón vertical, #110747, sin línea, vendedor junto a TOTAL)
 (function () {
-  // ====== Parámetros del “papel virtual” ======
-  const PAGE_W_MM  = 205;   // ancho total de la hoja que ocupamos
-  const PAGE_H_MM  = 130;   // ***altura TOTAL*** (subí a 135 si querés un pelín más)
-  const LEFT_W_MM  = 140;   // ancho de la ficha (izquierda)
-  const GUTTER_MM  = 5;     // separación/línea punteada
-  const RIGHT_W_MM = PAGE_W_MM - LEFT_W_MM - GUTTER_MM; // ancho del talón
-  const BAR_W_MM   = 55;    // ancho del barcode de la ficha
-  const BAR_H_MM   = 8;     // alto del barcode
-  const QR_SIZE_MM = 40;    // tamaño del QR en el talón (queda al pie)
-  const QR_SRC     = 'img/qr-info.png'; // ruta del QR
+  // ===== Tamaños hoja virtual =====
+  const PAGE_W_MM  = 205;     // ancho de la zona de impresión que usamos
+  const PAGE_H_MM  = 130;     // alto total (subí a 135 si querés)
+  const LEFT_W_MM  = 145;     // ancho ficha (izquierda)
+  const RIGHT_W_MM = PAGE_W_MM - LEFT_W_MM; // ancho del talón (derecha)
 
-  // ====== Nudge en móviles (compensa encabezados del diálogo de impresión) ======
+  // Barcode solo en la ficha
+  const BAR_W_MM   = 55;
+  const BAR_H_MM   = 8;
+
+  // QR del talón (queda abajo del lateral, pero como el talón va rotado, se ve “al pie” del talón)
+  const QR_SIZE_MM = 40;
+  const QR_SRC     = 'img/qr-info.png';
+
+  // Nudge para móviles (compensa encabezados del diálogo de impresión)
   const UA = navigator.userAgent || '';
   const IS_MOBILE = /Android|iPhone|iPad|iPod/i.test(UA);
   const NUDGE_TOP_MM  = IS_MOBILE ? -10 : 0;
@@ -21,7 +22,7 @@
   const EXTRA_W_MM = Math.max(0, -NUDGE_LEFT_MM);
   const EXTRA_H_MM = Math.max(0, -NUDGE_TOP_MM);
 
-  // ====== Helpers ======
+  // ===== Helpers =====
   const $ = (id) => document.getElementById(id);
 
   const getSelText = (el) => {
@@ -32,7 +33,6 @@
     }
     return (el.value || '').trim();
   };
-
   function normNumberLike(v) {
     if (v == null) return 0;
     const s = String(v).replace(/[^\d.,-]/g, '').replace(/\./g, '').replace(',', '.');
@@ -43,7 +43,6 @@
     const n = Math.max(0, normNumberLike(v));
     return '$ ' + n.toLocaleString('es-AR', { maximumFractionDigits: 0 });
   }
-
   function parseFechaLoose(str) {
     if (!str) return null;
     if (str instanceof Date) return isNaN(str) ? null : str;
@@ -72,16 +71,18 @@
   }
   const dash = (v) => (v && String(v).trim()) ? String(v).trim() : '—';
 
-  // ====== Lee el formulario ======
+  // ===== Lee formulario =====
   function collectForm() {
     return {
       numero: dash($('numero_trabajo')?.value),
       cliente: dash($('nombre')?.value),
       dni: dash($('dni')?.value),
       tel: dash($('telefono')?.value),
+
       fecha:  safeDDMMYYYY($('fecha')),
       retira: safeDDMMYYYY($('fecha_retira')),
       entrega: getSelText($('entrega-select')) || '—',
+
       cristal: dash($('cristal')?.value),
       distFocal: getSelText($('distancia_focal')) || '—',
       armazonNum: dash($('numero_armazon')?.value),
@@ -105,16 +106,17 @@
       saldo:         money($('saldo')?.value || 0),
       total:         money($('total')?.value || 0),
 
-      formaPago: dash($('forma_pago')?.value || '')
+      formaPago: dash($('forma_pago')?.value || ''),
+      vendedor: dash($('vendedor')?.value || '')
     };
   }
 
-  // ====== HTML ======
+  // ===== HTML =====
   function renderTicket(d) {
     return `
 <div class="sheet">
   <div class="canvas" style="transform: translate(${NUDGE_LEFT_MM}mm, ${NUDGE_TOP_MM}mm);">
-    <!-- Columna izquierda (ficha) -->
+    <!-- FICHA (izquierda) -->
     <section class="main">
       <header class="hdr">
         <div class="brand">
@@ -171,44 +173,41 @@
         <div class="kv"><div class="k">Obra social</div><div class="v mono">${d.obraSocial}</div></div>
         <div class="kv"><div class="k">Seña</div><div class="v mono">${d.sena}</div></div>
         <div class="kv"><div class="k">Saldo</div><div class="v mono">${d.saldo}</div></div>
-        <div class="total-line">TOTAL: <span class="mono">${d.total}</span></div>
+
+        <div class="total-row">
+          <div class="vend">Vendedor: <strong>${d.vendedor}</strong></div>
+          <div class="total-fig">TOTAL: <span class="mono">${d.total}</span></div>
+        </div>
       </section>
     </section>
 
-    <!-- Separador punteado -->
-    <div class="gutter"></div>
-
-    <!-- Columna derecha (talón) -->
-    <section class="coupon">
-      <header class="c-head">
+    <!-- TALÓN (derecha, rotado 90° para usar el lateral) -->
+    <section class="side">
+      <div class="couponR">
         <div class="c-brand">
           <img class="c-logo" src="logo.png" alt="Óptica Cristal" />
           <div>
             <div class="c-title">Óptica Cristal</div>
-            <div class="c-sub">Av R. Balbín 1125 · San Miguel<br/>WhatsApp: 11 5668 9919</div>
+            <div class="c-sub">Av R. Balbín 1125 · San Miguel · WhatsApp: 11 5668 9919</div>
           </div>
         </div>
-      </header>
-
-      <div class="c-body">
-        <div class="c-row"><div class="ck">N° Trabajo</div><div class="cv mono">${d.numero}</div></div>
-        <div class="c-row"><div class="ck">Cliente</div><div class="cv">${d.cliente}</div></div>
-        <div class="c-row"><div class="ck">Encargó</div><div class="cv mono">${d.fecha}</div></div>
-        <div class="c-row"><div class="ck">Retira</div><div class="cv mono">${d.retira}</div></div>
-        <div class="c-row"><div class="ck">Total</div><div class="cv mono">${d.total}</div></div>
-        <div class="c-row"><div class="ck">Seña</div><div class="cv mono">${d.sena}</div></div>
-        <div class="c-row"><div class="ck">Saldo</div><div class="cv mono">${d.saldo}</div></div>
-      </div>
-
-      <div class="c-qr">
-        <img src="${QR_SRC}" alt="QR" />
+        <div class="c-body">
+          <div class="c-row"><div class="ck">N° Trabajo</div><div class="cv mono">${d.numero}</div></div>
+          <div class="c-row"><div class="ck">Cliente</div><div class="cv">${d.cliente}</div></div>
+          <div class="c-row"><div class="ck">Encargó</div><div class="cv mono">${d.fecha}</div></div>
+          <div class="c-row"><div class="ck">Retira</div><div class="cv mono">${d.retira}</div></div>
+          <div class="c-row"><div class="ck">Total</div><div class="cv mono">${d.total}</div></div>
+          <div class="c-row"><div class="ck">Seña</div><div class="cv mono">${d.sena}</div></div>
+          <div class="c-row"><div class="ck">Saldo</div><div class="cv mono">${d.saldo}</div></div>
+        </div>
+        <div class="c-qr"><img src="${QR_SRC}" alt="QR" /></div>
       </div>
     </section>
   </div>
 </div>`;
   }
 
-  // ====== IFRAME print ======
+  // ===== IFRAME print =====
   function printInIframe(htmlInner, numero) {
     const css = `
 <style>
@@ -218,6 +217,8 @@
   body { font: 9.5pt/1.25 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; color:#111; }
   .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
 
+  :root{ --brand:#110747; }
+
   .sheet {
     width: ${PAGE_W_MM + EXTRA_W_MM}mm;
     height:${PAGE_H_MM + EXTRA_H_MM}mm;
@@ -225,15 +226,15 @@
   }
   .canvas{
     width:${PAGE_W_MM}mm; height:${PAGE_H_MM}mm;
-    display:grid; grid-template-columns: ${LEFT_W_MM}mm ${GUTTER_MM}mm ${RIGHT_W_MM}mm;
+    display:grid; grid-template-columns: ${LEFT_W_MM}mm ${RIGHT_W_MM}mm;
     transform: translate(${NUDGE_LEFT_MM}mm, ${NUDGE_TOP_MM}mm);
   }
 
-  /* ===== FICHA (izquierda) ===== */
-  .main{ padding: 2.5mm 3mm 2mm 3mm; box-sizing:border-box; display:block; }
+  /* ===== FICHA ===== */
+  .main{ padding: 2.5mm 3mm 2mm 3mm; box-sizing:border-box; }
   .hdr{ display:grid; grid-template-columns: 1fr ${BAR_W_MM}mm 1fr; column-gap: 3mm; align-items:flex-start; margin-bottom: 2mm; }
-  .title{ font-weight:800; font-size: 10.5pt; color:#0b57d0; }
-  .sub{ color:#566; font-size: 8.2pt; margin-top:.2mm; }
+  .title{ font-weight:800; font-size: 10.5pt; color:var(--brand); }
+  .sub{ color:#555; font-size: 8.2pt; margin-top:.2mm; }
   .nro{ justify-self:end; text-align:right; }
   .nro .lbl{ font-size:8pt; color:#666; }
   .nro .val{ font-size:12pt; font-weight:800; letter-spacing:.2px; }
@@ -243,54 +244,58 @@
 
   .grid2{ display:grid; grid-template-columns:1fr 1fr; gap: 2mm 4mm; }
   .kv{ display:grid; grid-template-columns: 24mm 1fr; column-gap: 2mm; align-items: baseline; }
-  .kv .k{ color:#555; font-size: 8.3pt; }
+  .kv .k{ color:#444; font-size: 8.3pt; }
   .kv .v{ font-weight: 600; min-height: 9.5pt; }
 
   .dtl{ margin-top: .6mm; }
 
   .grades{ display:grid; grid-template-columns: 1fr 1fr; gap: 2.2mm; margin: 1.8mm 0; }
   .box{ border:1px solid #d8dbe0; border-radius: 1mm; overflow:hidden; }
-  .box-t{ background:#eef3ff; color:#0b57d0; padding: .8mm 1.6mm; font-weight:700; font-size:9pt; }
+  .box-t{ background:#f0f2f9; color:var(--brand); padding: .8mm 1.6mm; font-weight:700; font-size:9pt; }
   .tbl{ width:100%; border-collapse:collapse; }
   .tbl th,.tbl td{ border-top:1px solid #e5e7eb; padding: .9mm 1.2mm; text-align:center; font-size: 9pt; }
 
   .totals{ display:grid; grid-template-columns: 1fr 1fr; gap: 1mm 4mm; }
   .totals .kv .k{ font-size: 8.3pt; }
   .totals .kv .v{ font-weight: 700; }
-  .total-line{ grid-column: 1 / -1; text-align:right; font-weight:800; font-size: 12pt; border-top:1px dashed #b9c2d0; padding-top: 1.2mm; margin-top: .3mm; }
 
-  /* ===== Separador vertical ===== */
-  .gutter{
-    border-left: 0.4mm dashed #9db1e7;
-    height: 100%;
+  .total-row{
+    grid-column: 1 / -1;
+    display:flex; align-items:center; justify-content:space-between;
+    border-top:1px dashed #b9c2d0; padding-top: 1.2mm; margin-top: .3mm;
   }
+  .vend{ color:#333; font-size: 10pt; }
+  .total-fig{ font-weight:800; font-size: 12pt; }
 
-  /* ===== TALÓN (derecha) ===== */
-  .coupon{
-    height:100%;
+  /* ===== TALÓN (lateral derecho rotado) ===== */
+  .side{
+    position:relative; overflow:hidden;
+  }
+  /* Rotor: el contenido se gira -90° y se ajusta para entrar */
+  .couponR{
+    position:absolute; left: 2mm; bottom: 2mm;
+    transform-origin: bottom left;
+    transform: rotate(-90deg);
+    width: ${PAGE_H_MM - 4}mm;         /* ancho lógico del talón ya rotado */
+    /* Alto “visible” del talón cuando está rotado ≈ RIGHT_W_MM */
     box-sizing:border-box;
-    padding: 2.2mm 2.6mm 2.2mm 2.6mm;
-    display:flex; flex-direction:column; gap: 2mm;
+    padding: 2mm 3mm;
+    border:1px dashed #cbd5e1;
+    border-radius: 2mm;
+    background:#fff;
   }
-  .c-head{}
-  .c-brand{ display:flex; align-items:center; gap: 2mm; }
-  .c-logo{ width: 7mm; height: 7mm; object-fit:contain; border-radius: 1mm; }
-  .c-title{ font-weight:800; color:#0b57d0; }
+  .c-brand{ display:flex; align-items:center; gap: 3mm; margin-bottom: 2mm; }
+  .c-logo{ width:8mm; height:8mm; object-fit:contain; border-radius:1mm; }
+  .c-title{ font-weight:900; color:var(--brand); }
   .c-sub{ font-size: 8pt; color:#4b5563; line-height:1.2; }
 
-  .c-body{ display:grid; gap: 1.4mm; }
-  .c-row{ display:grid; grid-template-columns: 19mm 1fr; column-gap: 2mm; align-items: baseline; }
-  .ck{ color:#555; font-size: 8.3pt; }
+  .c-body{ display:grid; gap: 1.4mm; margin-bottom: 2mm; }
+  .c-row{ display:grid; grid-template-columns: 22mm 1fr; column-gap: 3mm; align-items: baseline; }
+  .ck{ color:#444; font-size: 8.3pt; }
   .cv{ font-weight: 700; min-height: 9.5pt; }
 
-  .c-qr{
-    margin-top:auto;               /* => empuja el QR al fondo del talón */
-    display:flex; justify-content:center;
-  }
-  .c-qr img{
-    width:${QR_SIZE_MM}mm; height:${QR_SIZE_MM}mm; object-fit:contain;
-    image-rendering: -webkit-optimize-contrast;
-  }
+  .c-qr{ display:flex; justify-content:flex-end; }
+  .c-qr img{ width:${QR_SIZE_MM}mm; height:${QR_SIZE_MM}mm; object-fit:contain; }
 </style>`;
 
     const ifr = document.createElement('iframe');
@@ -317,7 +322,7 @@
         }
       } catch (_) {}
 
-      const cleanup = () => { setTimeout(() => { try { document.body.removeChild(ifr); } catch {} }, 100); };
+      const cleanup = () => { setTimeout(() => { try { document.body.removeChild(ifr); } catch {} }, 120); };
       w.addEventListener?.('afterprint', cleanup);
       setTimeout(() => { try { w.focus(); w.print(); } catch {} setTimeout(cleanup, 500); }, 60);
     };
@@ -333,7 +338,7 @@
     }
   }
 
-  // ====== API pública ======
+  // API
   window.__buildPrintArea = function () {
     const data = collectForm();
     const html = renderTicket(data);
