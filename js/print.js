@@ -11,7 +11,7 @@
   const BAR_W_MM = 55, BAR_H_MM = 8;
   const BRAND_COLOR = '#110747';
 
-  const QR_SRC = './qr.jpg';        // tu QR (cambiá si está en /img/qr-info.png)
+  const QR_SRC = './qr-jpg-baja.jpg';        // tu QR (cambiá si está en /img/qr-info.png)
   const QR_SIZE_MM = 30;            // tamaño del QR en el talón
 
   // ====== Helpers ======
