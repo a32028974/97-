@@ -1,27 +1,23 @@
-// /js/print.js — v2025-09-06d (ticket 145mm + talón abajo, ajustes de márgenes y color)
+// /js/print.js — v2025-09-06e (modo seguro: sin nudge X, ticket 145mm + talón)
 (function () {
   // ===== Tamaño de página =====
-  const PAGE_W_MM = 130;   // ancho hoja
-  const PAGE_H_MM = 155;   // alto hoja
+  const PAGE_W_MM = 130;
+  const PAGE_H_MM = 155;
 
   // ===== Alturas =====
-  const TICKET_H_MM = 145; // ← ficha fija a 145mm
-  const GAP_V_MM    = 2;   // separación vertical entre secciones
-  const CUT_H_MM    = 0.35;// línea de corte (grosor “visual”)
+  const TICKET_H_MM = 145;  // alto fijo de la ficha
+  const GAP_V_MM    = 2;    // separación entre secciones
+  const CUT_H_MM    = 0.35; // grosor visual línea de corte
 
-  // ===== Barcode del ticket =====
-  const BAR_W_MM  = 55;
-  const BAR_H_MM  = 8;
+  // ===== Barcode =====
+  const BAR_W_MM = 55;
+  const BAR_H_MM = 8;
 
-  // ===== Nudge por impresora/UA =====
+  // ===== Nudge (ajuste por drivers) =====
   const UA = navigator.userAgent || '';
   const IS_MOBILE = /Android|iPhone|iPad|iPod/i.test(UA);
-  const NUDGE_TOP_MM  = IS_MOBILE ? -12 : -8; // ← subimos más en escritorio
-  const NUDGE_LEFT_MM = IS_MOBILE ? -8  : -2;
-
-  // Para evitar recorte con nudge negativo, ampliamos canvas virtual
-  const EXTRA_W_MM = Math.max(0, -NUDGE_LEFT_MM);
-  const EXTRA_H_MM = Math.max(0, -NUDGE_TOP_MM);
+  const NUDGE_TOP_MM  = IS_MOBILE ? -10 : -4; // solo vertical
+  const NUDGE_LEFT_MM = 0;                    // ← sin nudge horizontal
 
   // ===== Helpers =====
   const $ = (id) => document.getElementById(id);
@@ -156,7 +152,7 @@
   <!-- Línea de corte -->
   <div class="cutline"></div>
 
-  <!-- TALÓN: ocupa el resto de la hoja -->
+  <!-- TALÓN (ocupa el resto) -->
   <section class="slip">
     <div class="slip-head">
       <img class="slip-logo" src="logo.png" alt="Óptica Cristal">
@@ -189,25 +185,22 @@
     const css = `
     <style>
       :root{ --brand:#1b64f2; --muted:#666; --line:#d8dbe0; }
-      @page { size: ${PAGE_W_MM + EXTRA_W_MM}mm ${PAGE_H_MM + EXTRA_H_MM}mm; margin: 0; }
+      @page { size: ${PAGE_W_MM}mm ${PAGE_H_MM}mm; margin: 0; }
       *{ -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       html,body{ background:#fff; margin:0!important; padding:0!important; }
       body{ font: 9.5pt/1.25 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; color:#111; }
       .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
 
-      /* Página en una columna: ticket 145mm + corte + talón auto */
       .page{
-        width:${PAGE_W_MM + EXTRA_W_MM}mm; height:${PAGE_H_MM + EXTRA_H_MM}mm;
+        width:${PAGE_W_MM}mm; height:${PAGE_H_MM}mm;
         position:fixed; top:0; left:0; overflow:hidden;
         display:grid;
         grid-template-rows: ${TICKET_H_MM}mm ${CUT_H_MM}mm auto;
         row-gap: ${GAP_V_MM}mm;
-        transform: translate(${NUDGE_LEFT_MM}mm, ${NUDGE_TOP_MM}mm);
-        padding: 0; /* sin padding lateral para no perder espacio útil */
+        transform: translate(0mm, ${NUDGE_TOP_MM}mm); /* solo Y */
         box-sizing:border-box;
       }
 
-      /* Ticket */
       .ticket{ width:100%; height:${TICKET_H_MM}mm; box-sizing:border-box; }
       .hdr{ display:grid; grid-template-columns: 1fr ${BAR_W_MM}mm 1fr; align-items:flex-start; column-gap: 2.5mm; margin-bottom: 2mm; }
       .title{ font-weight:700; font-size: 11pt; color: var(--brand); }
@@ -231,10 +224,8 @@
       .totals .kv .k{ font-size: 8.5pt; } .totals .kv .v{ font-weight: 700; }
       .total-line{ grid-column: 1 / -1; text-align:right; font-weight:800; font-size: 12pt; border-top: .2mm dashed #9aa4b2; padding-top: 1.2mm; margin-top: .4mm; }
 
-      /* Línea de corte */
       .cutline{ border-top: .35mm dashed #9aa4b2; width:100%; }
 
-      /* Talón (resto de altura) */
       .slip{
         width:100%; height:100%; box-sizing:border-box;
         display:flex; flex-direction:column; gap:2mm; padding: 2mm 1mm 1.5mm;
@@ -247,16 +238,15 @@
       .slip-row{ display:grid; grid-template-columns:21mm 1fr; column-gap:2mm; }
       .slip-row .k{ color:#666; font-size:8.5pt; }
       .slip-row .v{ font-weight:700; }
-      .slip-row.big .v{ font-size:12.5pt; font-weight:800; } /* más marcado */
+      .slip-row.big .v{ font-size:12.5pt; font-weight:800; }
 
       .slip-sum{ display:grid; gap:1mm; margin-top:.5mm; }
-      .slip-sum .sl{ display:flex; justify-content:space-between; gap:6mm; font-size:10.5pt; } /* un toque más grande */
+      .slip-sum .sl{ display:flex; justify-content:space-between; gap:6mm; font-size:10.5pt; }
       .slip-sum .sl .k{ font-weight:700; } .slip-sum .sl .v{ font-weight:800; }
 
       .slip-qr{ margin-top:auto; text-align:center; }
-      .slip-qr img{ width:36mm; height:36mm; object-fit:contain; } /* QR más grande */
+      .slip-qr img{ width:36mm; height:36mm; object-fit:contain; }
     </style>`;
-
     const ifr = document.createElement('iframe');
     Object.assign(ifr.style,{position:'fixed',right:'0',bottom:'0',width:'0',height:'0',border:'0',visibility:'hidden'});
     document.body.appendChild(ifr);
