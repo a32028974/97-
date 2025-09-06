@@ -1,25 +1,28 @@
-// /js/print.js — v2025-09-06v (vertical + talón derecho + móvil robusto)
-
+// /js/print.js — v2025-09-06v (A4 vertical + talón fijo 145/5/55mm, 130mm de alto, QR optimizado)
 (function () {
-  // ===== Página física (A4/Letter) =====
-  // Usamos una página completa y dibujamos el contenido en la franja superior.
-  const PAGE_W_MM = 210;   // ancho hoja
-  const PAGE_H_MM = 297;   // alto hoja
+  // ===== Tamaños (A4) =====
+  const PAGE_W_MM = 210;      // ancho hoja
+  const PAGE_H_MM = 297;      // alto hoja
+  const LEFT_W_MM = 145;      // ficha principal
+  const GUTTER_MM = 5;        // separación/guía de corte
+  const RIGHT_W_MM = 55;      // talón
+  const MAX_COL_H_MM = 130;   // altura máxima de cada bloque
+  const BAR_W_MM = 55;        // ancho código de barras
+  const BAR_H_MM = 8;         // alto código de barras
 
-  // ===== Zona superior con ticket + talón =====
-  const BAND_HEIGHT_MM = 133;        // alto total de la franja imprimible (≈130–135)
-  const GAP_MM          = 4;         // separación entre ficha y talón
-  const COUPON_W_MM     = 48;        // ancho del talón
-  const TICKET_W_MM     = PAGE_W_MM - COUPON_W_MM - GAP_MM;
-
-  // ===== QR (archivo liviano) =====
-  const QR_SRC = 'img/qr-jpg-baja.jpg';
-
-  // ===== Detección de móvil =====
+  // ===== Detección simple de móvil =====
   const UA = navigator.userAgent || '';
   const IS_MOBILE = /Android|iPhone|iPad|iPod/i.test(UA);
 
-  // ===== Helpers DOM & formatos =====
+  // Nudge suave sólo en móviles (para “subir” un poco sin cortar)
+  const NUDGE_TOP_MM  = IS_MOBILE ? -6 : 0;
+  const NUDGE_LEFT_MM = IS_MOBILE ?  0 : 0;
+
+  // Colchón virtual por si hay nudge negativo
+  const EXTRA_W_MM = Math.max(0, -NUDGE_LEFT_MM);
+  const EXTRA_H_MM = Math.max(0, -NUDGE_TOP_MM);
+
+  // ===== Helpers =====
   const $ = (id) => document.getElementById(id);
 
   const getSelText = (el) => {
@@ -68,7 +71,6 @@
     const d = parseFechaLoose(raw);
     return d ? ddmmyyyy(d) : (raw || '');
   }
-
   const dash = (v) => (v && String(v).trim()) ? String(v).trim() : '—';
 
   // ===== Leer formulario =====
@@ -108,7 +110,7 @@
       total:         money($('total')?.value || 0),
 
       formaPago: dash($('forma_pago')?.value || ''),
-      vendedor:  dash($('vendedor')?.value || '')
+      vendedor:  dash($('vendedor')?.value)
     };
   }
 
@@ -116,21 +118,19 @@
   function renderTicket(d) {
     return `
 <div class="sheet">
-  <!-- Franja superior -->
-  <div class="band">
-    <!-- Ficha principal (izquierda) -->
-    <div class="ticket">
+  <div class="canvas" style="transform: translate(${NUDGE_LEFT_MM}mm, ${NUDGE_TOP_MM}mm);">
+    <!-- Columna izquierda (ficha) -->
+    <section class="left">
       <header class="hdr">
         <div class="brand">
-          <div class="logo-dot"></div>
-          <div class="title">Óptica Cristal</div>
-          <div class="sub">San Miguel · Argentina</div>
+          <div class="dot"></div>
+          <div class="brand-t">
+            <div class="title">Óptica Cristal</div>
+            <div class="sub">San Miguel · Argentina</div>
+          </div>
         </div>
         <div class="barwrap"><svg id="barcode" aria-label="Código de barras"></svg></div>
-        <div class="nro">
-          <div class="lbl">N° TRABAJO</div>
-          <div class="val mono">${d.numero}</div>
-        </div>
+        <div class="nro"><div class="lbl">N° TRABAJO</div><div class="val mono">${d.numero}</div></div>
       </header>
 
       <section class="grid2 info">
@@ -140,9 +140,6 @@
         <div class="kv"><div class="k">Fecha</div><div class="v mono">${d.fecha}</div></div>
         <div class="kv"><div class="k">Retira</div><div class="v mono">${d.retira}</div></div>
         <div class="kv"><div class="k">Entrega</div><div class="v">${d.entrega}</div></div>
-      </section>
-
-      <section class="grid2 dtl">
         <div class="kv"><div class="k">Cristal</div><div class="v">${d.cristal}</div></div>
         <div class="kv"><div class="k">Dist. Focal</div><div class="v">${d.distFocal}</div></div>
         <div class="kv"><div class="k">Armazón Nº</div><div class="v mono">${d.armazonNum}</div></div>
@@ -176,172 +173,125 @@
         <div class="kv"><div class="k">Obra social</div><div class="v mono">${d.obraSocial}</div></div>
         <div class="kv"><div class="k">Seña</div><div class="v mono">${d.sena}</div></div>
         <div class="kv"><div class="k">Saldo</div><div class="v mono">${d.saldo}</div></div>
+        <div class="total-line">
+          <span class="vendedor">Vendedor: <b>${d.vendedor}</b></span>
+          <span class="big">TOTAL: <span class="mono">${d.total}</span></span>
+        </div>
       </section>
+    </section>
 
-      <div class="bottom-row">
-        <div class="vend">Vendedor: <span class="mono">${d.vendedor}</span></div>
-        <div class="total-line">TOTAL: <span class="mono">${d.total}</span></div>
-      </div>
-    </div>
+    <!-- Guía de corte -->
+    <div class="cut"></div>
 
-    <!-- Talón (derecha) -->
-    <div class="coupon">
-      <div class="c-head">
-        <div class="c-brand">
-          <div class="logo-dot"></div>
-          <div class="cb-title">Óptica Cristal</div>
-          <div class="cb-sub">Av. R. Balbín 1125 · San Miguel<br/>WhatsApp: 11 5668 9919</div>
+    <!-- Columna derecha (talón) -->
+    <section class="right">
+      <div class="r-head">
+        <img class="r-logo" src="logo.png" alt="Óptica Cristal" />
+        <div class="r-brand">
+          <div class="r-title">Óptica Cristal</div>
+          <div class="r-sub">Av. R. Balbín 1125 – San Miguel<br/>WhatsApp: 11 5668 9919</div>
         </div>
       </div>
 
-      <div class="c-row"><div class="c-k">N° Trabajo</div><div class="c-v mono">${d.numero}</div></div>
-      <div class="c-row"><div class="c-k">Cliente</div><div class="c-v">${d.cliente}</div></div>
-      <div class="c-row"><div class="c-k">Encargó</div><div class="c-v mono">${d.fecha}</div></div>
-      <div class="c-row"><div class="c-k">Retira</div><div class="c-v mono">${d.retira}</div></div>
-      <div class="c-row"><div class="c-k">Total</div><div class="c-v mono">${d.total}</div></div>
-      <div class="c-row"><div class="c-k">Seña</div><div class="c-v mono">${d.sena}</div></div>
-      <div class="c-row"><div class="c-k">Saldo</div><div class="c-v mono">${d.saldo}</div></div>
+      <div class="r-kv"><div class="rk">N° Trabajo</div><div class="rv mono">${d.numero}</div></div>
+      <div class="r-kv"><div class="rk">Cliente</div><div class="rv">${d.cliente}</div></div>
+      <div class="r-kv"><div class="rk">Encargó</div><div class="rv mono">${d.fecha}</div></div>
+      <div class="r-kv"><div class="rk">Retira</div><div class="rv mono">${d.retira}</div></div>
+      <div class="r-kv"><div class="rk">Total</div><div class="rv mono">${d.total}</div></div>
+      <div class="r-kv"><div class="rk">Seña</div><div class="rv mono">${d.sena}</div></div>
+      <div class="r-kv"><div class="rk">Saldo</div><div class="rv mono">${d.saldo}</div></div>
 
-      <img class="qr" src="${QR_SRC}" alt="QR" />
-    </div>
+      <div class="r-qr">
+        <img src="img/qr-jpg-baja.jpg" alt="QR" />
+      </div>
+    </section>
   </div>
 </div>`;
   }
 
-  // ===== Estilos de impresión (en mm, colores a color) =====
-  function buildPrintCSS() {
-    return `
-<style>
-  @page { size: ${PAGE_W_MM}mm ${PAGE_H_MM}mm; margin: 0; }
-  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  html, body { background:#fff; margin:0; padding:0; }
-  body { font: 9.5pt/1.25 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; color:#111; }
-  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
+  // ===== Imprimir en IFRAME =====
+  function printInIframe(htmlInner, numero) {
+    const BRAND = '#110747';
+    const css = `
+    <style>
+      @page { size: ${PAGE_W_MM + EXTRA_W_MM}mm ${PAGE_H_MM + EXTRA_H_MM}mm; margin: 0; }
+      * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      html, body { margin:0; padding:0; background:#fff; color:#111; font: 9.5pt/1.3 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; }
+      .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
 
-  .sheet { width:${PAGE_W_MM}mm; height:${PAGE_H_MM}mm; position:fixed; inset:0; }
-  .band {
-    position:absolute; left:0; top:0;
-    width:${PAGE_W_MM}mm; height:${BAND_HEIGHT_MM}mm;
-    box-sizing:border-box; padding:4mm 5mm;
-  }
-
-  /* Estructura izquierda/derecha */
-  .ticket {
-    position:absolute; left:5mm; top:4mm;
-    width:${TICKET_W_MM - 5}mm; /* restamos el padding izquierdo ya usado */
-    height:${BAND_HEIGHT_MM - 8}mm;
-  }
-  .coupon {
-    position:absolute; right:5mm; top:4mm;
-    width:${COUPON_W_MM}mm; height:${BAND_HEIGHT_MM - 8}mm;
-    box-sizing:border-box; padding:0 0 0 0;
-  }
-
-  /* Cabecera ficha */
-  .hdr { display:grid; grid-template-columns: 1fr 55mm 1fr; column-gap: 4mm; align-items:flex-start; margin-bottom:2.4mm; }
-  .brand { display:grid; grid-template-columns: 4mm 1fr; align-items:center; gap:1.6mm; }
-  .logo-dot { width:3.2mm; height:3.2mm; border-radius:0.6mm; background:#110747; }
-  .title { font-weight:800; font-size:11pt; color:#110747; }
-  .sub { color:#6b7280; font-size:8.3pt; margin-top:.2mm; }
-  .nro { justify-self:end; }
-  .nro .lbl { font-size:8pt; color:#6b7280; }
-  .nro .val { font-size:12pt; font-weight:800; color:#110747; letter-spacing:.2px; }
-
-  /* Código de barras */
-  .barwrap { width:55mm; height:8mm; display:flex; align-items:center; justify-content:center; }
-  .barwrap svg { width:55mm; height:8mm; }
-
-  /* Grillas */
-  .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap: 2mm 4mm; }
-  .kv { display:grid; grid-template-columns: 22mm 1fr; column-gap:2mm; align-items:baseline; }
-  .kv .k { color:#4b5563; font-size:8.4pt; }
-  .kv .v { font-weight:600; min-height:10pt; }
-
-  .dtl { margin-top:1mm; }
-
-  .grades { display:grid; grid-template-columns: 1fr 1fr; gap:3mm; margin:2mm 0; }
-  .box { border: 1px solid #d8dbe0; border-radius:1mm; overflow:hidden; }
-  .box-t { background:#eef2ff; color:#110747; padding:1mm 2mm; font-weight:700; font-size:9pt; }
-  .tbl { width:100%; border-collapse:collapse; }
-  .tbl th, .tbl td { border-top:1px solid #e5e7eb; padding:1mm 1.5mm; text-align:center; font-size:9pt; }
-
-  .totals { margin-top:1mm; display:grid; grid-template-columns: 1fr 1fr; gap:1mm 4mm; }
-  .totals .kv .k { font-size:8.4pt; }
-  .totals .kv .v { font-weight:700; }
-
-  .bottom-row {
-    display:grid; grid-template-columns: 1fr auto; align-items:center;
-    gap: 6mm; border-top:1px dashed #cbd5e1; padding-top:1.4mm; margin-top:.6mm;
-  }
-  .vend { color:#374151; }
-  .total-line { font-weight:800; font-size:12pt; }
-
-  /* Talón */
-  .c-head { margin-bottom:1.2mm; }
-  .c-brand { display:grid; grid-template-columns: 3mm 1fr; gap:1.2mm; align-items:center; }
-  .c-brand .logo-dot { width:3mm; height:3mm; border-radius:.6mm; background:#110747; }
-  .cb-title { font-weight:800; color:#110747; line-height:1; }
-  .cb-sub { color:#6b7280; font-size:8pt; line-height:1.15; margin-top:.4mm; }
-
-  .c-row { display:grid; grid-template-columns: 15mm 1fr; gap:1.4mm; margin:.9mm 0; font-size:9pt; }
-  .c-k { color:#4b5563; }
-  .qr {
-    position:absolute; left:50%; transform:translateX(-50%);
-    bottom:1.8mm; width:32mm; height:32mm; object-fit:cover; border-radius:1mm;
-    border:1px solid #e5e7eb;
-  }
-
-  /* (Opcional) sutil guía de corte en gris claro */
-  .band::after{
-    content:""; position:absolute; top:4mm; bottom:4mm; left:${TICKET_W_MM + 5}mm;
-    width:0; border-left:.5mm dashed #cbd5e1;
-  }
-</style>`;
-  }
-
-  // ===== Impresión (móvil robusto + desktop iframe) =====
-  function printDocument(htmlInner, numero) {
-    // Cerrar Swal si estuviera abierto (Android sino imprime la pantalla)
-    try { if (window.Swal) Swal.close(); } catch {}
-
-    const css = buildPrintCSS();
-
-    // Fallback móvil: abrir en una pestaña nueva (más fiable en Android/iOS)
-    if (IS_MOBILE) {
-      const win = window.open('', '_blank');
-      if (!win) return;
-      const doc = win.document;
-      doc.open();
-      doc.write(`<!doctype html><html><head><meta charset="utf-8">${css}</head><body>${htmlInner}</body></html>`);
-      doc.close();
-
-      const doPrint = () => {
-        try {
-          const svg = doc.getElementById('barcode');
-          if (win.JsBarcode && svg) {
-            win.JsBarcode(svg, String(numero||''), { format:'CODE128', displayValue:false, margin:0, height:40 });
-          }
-        } catch(_) {}
-        setTimeout(()=>{ try{ win.focus(); win.print(); }catch{} }, 200);
-      };
-
-      if (win.JsBarcode) doPrint();
-      else {
-        const s = doc.createElement('script');
-        s.src = 'https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js';
-        s.onload = doPrint;
-        s.onerror = doPrint;
-        doc.head.appendChild(s);
+      .sheet {
+        width: ${PAGE_W_MM + EXTRA_W_MM}mm;
+        height:${PAGE_H_MM + EXTRA_H_MM}mm;
+        position: fixed; inset: 0 0 auto 0;
+        overflow: hidden;
       }
-      return;
-    }
+      .canvas {
+        width:${PAGE_W_MM}mm; height:${PAGE_H_MM}mm;
+        padding: 6mm 5mm 0; /* pequeño resguardo visual */
+      }
 
-    // Desktop: iframe fuera de pantalla (no 0×0)
+      /* Grid fija en mm: 145 | 5 | 55 */
+      .canvas {
+        display: grid;
+        grid-template-columns: ${LEFT_W_MM}mm ${GUTTER_MM}mm ${RIGHT_W_MM}mm;
+        align-items: start;
+        column-gap: 0;
+      }
+
+      .left, .right { max-height:${MAX_COL_H_MM}mm; overflow:hidden; }
+      .left  { padding-right: 2mm; }
+      .right { padding-left: 2mm; }
+
+      .cut { width:${GUTTER_MM}mm; height:${MAX_COL_H_MM}mm; border-left: 1px dashed #cfd6e4; }
+
+      /* Cabecera ficha */
+      .hdr { display:grid; grid-template-columns: 1fr ${BAR_W_MM}mm 1fr; align-items: start; column-gap: 3mm; margin-bottom: 2mm; }
+      .brand { display:flex; align-items:flex-start; gap:2mm; }
+      .dot { width:3mm; height:3mm; background:${BRAND}; border-radius:50%; margin-top: 1mm; }
+      .title { font-weight:800; color:${BRAND}; }
+      .sub { color:#6b7280; font-size: 8.5pt; margin-top:.2mm; }
+      .barwrap { width:${BAR_W_MM}mm; height:${BAR_H_MM}mm; display:flex; align-items:center; justify-content:center; }
+      .barwrap svg { width:${BAR_W_MM}mm; height:${BAR_H_MM}mm; }
+      .nro { justify-self:end; text-align:right; }
+      .nro .lbl { font-size:8pt; color:#6b7280; }
+      .nro .val { font-weight:800; }
+
+      .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap: 1.8mm 3mm; }
+      .kv { display:grid; grid-template-columns: 22mm 1fr; column-gap: 1.8mm; align-items: baseline; }
+      .kv .k { color:#505a6b; font-size: 8.5pt; }
+      .kv .v { font-weight:600; }
+
+      .grades { display:grid; grid-template-columns: 1fr 1fr; gap: 2.2mm; margin: 2mm 0; }
+      .box { border:1px solid #d8dbe0; border-radius: 1mm; overflow:hidden; }
+      .box-t { background:#f2f4f7; padding: .8mm 1.6mm; font-weight:700; font-size:9pt; color:${BRAND}; }
+      .tbl { width:100%; border-collapse: collapse; }
+      .tbl th, .tbl td { border-top:1px solid #e5e7eb; padding: .8mm 1.2mm; text-align:center; font-size:9pt; }
+
+      .totals { display:grid; grid-template-columns: 1fr 1fr; gap: 1mm 3mm; }
+      .total-line { grid-column: 1 / -1; display:flex; justify-content:space-between; align-items:center; border-top:1px dashed #cfd6e4; padding-top:1.4mm; margin-top:.6mm; }
+      .total-line .big { font-weight:800; }
+      .vendedor { color:#505a6b; }
+
+      /* Talón */
+      .right { border-left: 0; }
+      .r-head { display:grid; grid-template-columns: 7mm 1fr; column-gap: 2mm; align-items:center; margin-bottom: 1.2mm; }
+      .r-logo { width:7mm; height:7mm; object-fit:contain; }
+      .r-title { font-weight:800; color:${BRAND}; line-height:1.1; }
+      .r-sub { color:#6b7280; font-size:8pt; line-height:1.1; margin-top:.2mm; }
+
+      .r-kv { display:grid; grid-template-columns: 16mm 1fr; gap: 1.2mm; align-items:baseline; margin: .6mm 0; }
+      .rk { color:#505a6b; font-size:8.5pt; }
+      .rv { font-weight:700; }
+
+      .r-qr { margin-top: 2mm; display:flex; justify-content:center; }
+      .r-qr img { width:34mm; height:34mm; object-fit:contain; image-rendering:auto; }
+
+      /* Colorear totales/acentos */
+      .box-t, .title, .r-title { color:${BRAND}; }
+    </style>`;
+
     const ifr = document.createElement('iframe');
-    Object.assign(ifr.style, {
-      position:'fixed', width:'1px', height:'1px', left:'-10000px', top:'0',
-      border:'0', opacity:'0', pointerEvents:'none'
-    });
+    Object.assign(ifr.style, { position:'fixed', right:'0', bottom:'0', width:'0', height:'0', border:'0', visibility:'hidden' });
     document.body.appendChild(ifr);
 
     const doc = ifr.contentDocument || ifr.contentWindow.document;
@@ -355,17 +305,23 @@
       try {
         const svg = doc.getElementById('barcode');
         if (w.JsBarcode && svg) {
-          w.JsBarcode(svg, String(numero||''), { format:'CODE128', displayValue:false, margin:0, height:40 });
+          w.JsBarcode(svg, String(numero || ''), {
+            format: 'CODE128',
+            displayValue: false,
+            margin: 0,
+            height: 40
+          });
         }
-      } catch(_) {}
+      } catch (_) {}
 
-      const cleanup = () => { setTimeout(()=>{ try{ document.body.removeChild(ifr); }catch{} }, 100); };
+      const cleanup = () => { setTimeout(() => { try { document.body.removeChild(ifr); } catch {} }, 100); };
       w.addEventListener?.('afterprint', cleanup);
-      setTimeout(()=>{ try{ w.focus(); w.print(); }catch{} setTimeout(cleanup, 500); }, 250);
+      setTimeout(() => { try { w.focus(); w.print(); } catch {} setTimeout(cleanup, 500); }, 60);
     };
 
-    if (w.JsBarcode) render();
-    else {
+    if (w.JsBarcode) {
+      render();
+    } else {
       const s = doc.createElement('script');
       s.src = 'https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js';
       s.onload = render;
@@ -374,10 +330,10 @@
     }
   }
 
-  // ===== API global para el botón "Imprimir" =====
+  // ===== API pública =====
   window.__buildPrintArea = function () {
     const data = collectForm();
     const html = renderTicket(data);
-    printDocument(html, data.numero);
+    printInIframe(html, data.numero);
   };
 })();
