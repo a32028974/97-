@@ -1,4 +1,4 @@
-// /js/print.js — v2025-09-06c (ticket 145mm arriba + talón abajo con el resto)
+// /js/print.js — v2025-09-06d (ticket 145mm + talón abajo, ajustes de márgenes y color)
 (function () {
   // ===== Tamaño de página =====
   const PAGE_W_MM = 130;   // ancho hoja
@@ -16,8 +16,10 @@
   // ===== Nudge por impresora/UA =====
   const UA = navigator.userAgent || '';
   const IS_MOBILE = /Android|iPhone|iPad|iPod/i.test(UA);
-  const NUDGE_TOP_MM  = IS_MOBILE ? -12 : -2;
+  const NUDGE_TOP_MM  = IS_MOBILE ? -12 : -8; // ← subimos más en escritorio
   const NUDGE_LEFT_MM = IS_MOBILE ? -8  : -2;
+
+  // Para evitar recorte con nudge negativo, ampliamos canvas virtual
   const EXTRA_W_MM = Math.max(0, -NUDGE_LEFT_MM);
   const EXTRA_H_MM = Math.max(0, -NUDGE_TOP_MM);
 
@@ -201,7 +203,7 @@
         grid-template-rows: ${TICKET_H_MM}mm ${CUT_H_MM}mm auto;
         row-gap: ${GAP_V_MM}mm;
         transform: translate(${NUDGE_LEFT_MM}mm, ${NUDGE_TOP_MM}mm);
-        padding: 0 2mm; /* bordes visuales suaves */
+        padding: 0; /* sin padding lateral para no perder espacio útil */
         box-sizing:border-box;
       }
 
@@ -245,14 +247,14 @@
       .slip-row{ display:grid; grid-template-columns:21mm 1fr; column-gap:2mm; }
       .slip-row .k{ color:#666; font-size:8.5pt; }
       .slip-row .v{ font-weight:700; }
-      .slip-row.big .v{ font-size:12pt; font-weight:800; }
+      .slip-row.big .v{ font-size:12.5pt; font-weight:800; } /* más marcado */
 
       .slip-sum{ display:grid; gap:1mm; margin-top:.5mm; }
-      .slip-sum .sl{ display:flex; justify-content:space-between; gap:6mm; font-size:10pt; }
+      .slip-sum .sl{ display:flex; justify-content:space-between; gap:6mm; font-size:10.5pt; } /* un toque más grande */
       .slip-sum .sl .k{ font-weight:700; } .slip-sum .sl .v{ font-weight:800; }
 
       .slip-qr{ margin-top:auto; text-align:center; }
-      .slip-qr img{ width:32mm; height:32mm; object-fit:contain; }
+      .slip-qr img{ width:36mm; height:36mm; object-fit:contain; } /* QR más grande */
     </style>`;
 
     const ifr = document.createElement('iframe');
