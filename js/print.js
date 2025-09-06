@@ -1,21 +1,20 @@
-// /js/print.js — v2025-09-06w (ficha + talón vertical, sin texto junto al QR)
+// /js/print.js — v2025-09-06y (A4 vertical, franja 130mm, talón derecho)
 
 (function () {
-  // ============== Layout ==============
-  const PAGE_H_MM   = 130;   // alto total (subí a 135 si querés un poco más)
-  const LEFT_W_MM   = 145;   // ancho ficha principal
-  const GUTTER_MM   = 6;     // separación entre ficha y talón
-  const RIGHT_W_MM  = 210 - LEFT_W_MM - GUTTER_MM; // ~59 mm
-  const PAGE_W_MM   = LEFT_W_MM + GUTTER_MM + RIGHT_W_MM;
+  // ====== Medidas de la franja superior (no forzamos tamaño de página) ======
+  const STRIP_H_MM = 130;               // alto total visible
+  const STRIP_W_MM = 200;               // ancho total de la franja (cómodo en A4)
+  const LEFT_W_MM  = 145;               // ficha
+  const GUTTER_MM  = 6;                 // separación
+  const RIGHT_W_MM = STRIP_W_MM - LEFT_W_MM - GUTTER_MM; // ~49mm
 
   const BAR_W_MM = 55, BAR_H_MM = 8;
-
-  const QR_SIZE_MM = 32;
-  const QR_SRC = './qr.jpg'; // cambiá a './img/qr-info.png' si lo tenés ahí
-
   const BRAND_COLOR = '#110747';
 
-  // ============== Helpers ==============
+  const QR_SRC = './qr.jpg';        // tu QR (cambiá si está en /img/qr-info.png)
+  const QR_SIZE_MM = 30;            // tamaño del QR en el talón
+
+  // ====== Helpers ======
   const $ = (id) => document.getElementById(id);
   const getSelText = (el) => el?.tagName === 'SELECT'
     ? (el.options[el.selectedIndex]?.textContent || el.value || '').trim()
@@ -43,13 +42,14 @@
     const d=parseFechaLoose(raw); return d?ddmmyyyy(d):(raw||''); }
   const dash = (v)=> (v && String(v).trim()) ? String(v).trim() : '—';
 
-  // ============== Leer formulario ==============
+  // ====== Leer formulario ======
   function collectForm(){
     return {
       numero: dash($('numero_trabajo')?.value),
       cliente: dash($('nombre')?.value),
       dni: dash($('dni')?.value),
       tel: dash($('telefono')?.value),
+
       fecha:  safeDDMMYYYY($('fecha')),
       retira: safeDDMMYYYY($('fecha_retira')),
       entrega: getSelText($('entrega-select')) || '—',
@@ -83,11 +83,11 @@
     };
   }
 
-  // ============== HTML ==============
+  // ====== HTML ======
   function renderTicket(d){
     return `
 <div class="page">
-  <!-- Ficha -->
+  <!-- FICHA IZQUIERDA -->
   <div class="left">
     <header class="hdr">
       <div class="brand">
@@ -152,7 +152,7 @@
     </section>
   </div>
 
-  <!-- Talón (vertical, sin texto extra) -->
+  <!-- TALÓN DERECHO (vertical) -->
   <div class="side">
     <div class="couponR">
       <div class="c-head">
@@ -173,34 +173,35 @@
         <div class="c-row"><div class="ck">Saldo</div><div class="cv mono">${d.saldo}</div></div>
       </div>
 
-      <!-- QR pegado abajo -->
-      <div class="c-qr"><img src="${QR_SRC}" alt="QR"/></div>
+      <div class="c-qr"><img src="${QR_SRC}" alt="QR"></div>
     </div>
   </div>
 </div>`;
   }
 
-  // ============== Print en IFRAME ==============
+  // ====== Print en IFRAME (no forzamos orientación) ======
   function printInIframe(htmlInner, numero){
     const css = `
     <style>
-      :root{ --brand: ${BRAND_COLOR}; }
-      @page { size: ${PAGE_W_MM}mm ${PAGE_H_MM}mm; margin: 0; }
+      :root{ --brand:${BRAND_COLOR}; }
+      @page{ margin: 0; } /* A4 vertical por defecto del navegador */
 
       *{ -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-      html,body{ background:#fff; margin:0 !important; padding:0 !important; }
-      body{ font: 9.5pt/1.25 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; color:#111; }
+      html,body{ background:#fff; margin:0!important; padding:0!important; }
+      body{ font:9.5pt/1.25 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; color:#111; }
       .mono{ font-family: ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace; }
 
+      /* Franja superior posicionada en el A4 vertical */
       .page{
-        width:${PAGE_W_MM}mm; height:${PAGE_H_MM}mm;
-        position:fixed; inset:0; display:grid;
-        grid-template-columns: ${LEFT_W_MM}mm ${GUTTER_MM}mm ${RIGHT_W_MM}mm;
+        width:${STRIP_W_MM}mm; height:${STRIP_H_MM}mm;
+        position: fixed; top: 0; left: 0;
+        display:grid; grid-template-columns:${LEFT_W_MM}mm ${GUTTER_MM}mm ${RIGHT_W_MM}mm;
       }
-      .left{ padding:2.2mm 2.6mm; }
-      .side{ padding:2mm 2mm 2mm 0; }
+      .left{ padding:2.2mm 2.6mm; box-sizing:border-box; }
+      .side{ padding:2mm 2mm 2mm 0; box-sizing:border-box; }
 
-      .hdr{ display:grid; grid-template-columns: 1fr ${BAR_W_MM}mm 1fr; column-gap:3mm; align-items:flex-start; margin-bottom:2mm; }
+      /* Encabezado ficha */
+      .hdr{ display:grid; grid-template-columns:1fr ${BAR_W_MM}mm 1fr; column-gap:3mm; align-items:flex-start; margin-bottom:2mm; }
       .title{ font-weight:900; font-size:11pt; color:var(--brand); letter-spacing:.2px; }
       .sub{ color:#666; font-size:8.5pt; margin-top:.4mm; }
       .nro{ justify-self:end; text-align:right; }
@@ -232,7 +233,7 @@
       /* Talón */
       .couponR{
         height:100%; box-sizing:border-box; padding:3mm;
-        border:1px dashed #cbd5e1; border-radius:2mm; background:#fff;
+        border-left:2px solid rgba(17,7,71,.25);
         display:flex; flex-direction:column; justify-content:space-between;
       }
       .c-head{ display:flex; align-items:center; gap:3mm; }
@@ -241,10 +242,9 @@
       .c-sub{ font-size:8pt; color:#4b5563; line-height:1.25; }
 
       .c-body{ display:grid; gap:1mm; margin-top:1mm; }
-      .c-row{ display:grid; grid-template-columns:22mm 1fr; column-gap:3mm; align-items:baseline; }
+      .c-row{ display:grid; grid-template-columns:20mm 1fr; column-gap:3mm; align-items:baseline; }
       .ck{ color:#444; font-size:8.3pt; }
-      .cv{ font-weight:700; min-height:9.5pt; }
-
+      .cv{ font-weight:720; min-height:9.5pt; }
       .c-qr{ display:flex; justify-content:center; }
       .c-qr img{ width:${QR_SIZE_MM}mm; height:${QR_SIZE_MM}mm; object-fit:contain; }
     </style>`;
