@@ -1,4 +1,4 @@
-// /js/main.js — v2025-09-05 (todo en uno: UI + progreso + fechas + graduaciones + imprimir/guardar)
+// /js/main.js — build limpio (sin historial/mini)
 
 // ===== Imports =====
 import './print.js?v=2025-09-05h';
@@ -12,8 +12,6 @@ import { initPhotoPack } from './fotoPack.js';
 
 // ===== Helpers DOM =====
 const $  = (id)  => document.getElementById(id);
-const $$ = (sel) => Array.from(document.querySelectorAll(sel));
-const isSelect = (el) => el && el.tagName === 'SELECT';
 
 // =========================================================================
 // PROGRESO (overlay)
@@ -149,36 +147,9 @@ const generarNumeroTrabajoDesdeTelefono = () => {
 };
 
 // =========================================================================
-/** Graduaciones (EJE + inputs y/o selects para ESF/CIL) */
+// Graduaciones (validaciones)
 // =========================================================================
 function clamp(n, min, max){ return Math.min(Math.max(n, min), max); }
-function snapToStep(n, step){ return Math.round(n / step) * step; }
-
-// --- inputs tipo texto (compat)
-function sanitizeGradual(el, allowSigns = true){
-  let v = el.value;
-  v = v.replace(/,/g, '').replace(/[^\d+.\-]/g, '');
-  if (!allowSigns) v = v.replace(/[+-]/g, '');
-  else v = v.replace(/(?!^)[+-]/g, '');
-  const parts = v.split('.'); if (parts.length > 2) v = parts[0] + '.' + parts.slice(1).join('');
-  el.value = v;
-}
-function validateGradual(el){
-  if (!el.dataset.step) {
-    if (el.classList.contains('grad-add')) { el.dataset.min = '0'; el.dataset.max = '4'; el.dataset.step = '0.25'; }
-    else                                   { el.dataset.min = '-30'; el.dataset.max = '20'; el.dataset.step = '0.25'; }
-  }
-  const min  = parseFloat(el.dataset.min);
-  const max  = parseFloat(el.dataset.max);
-  const step = parseFloat(el.dataset.step);
-  let v = el.value.trim(); if (!v) return;
-  v = v.replace(/,/g, '.');
-  const num = parseFloat(v);
-  if (isNaN(num)) { el.value = ''; return; }
-  let val = clamp(snapToStep(num, step), min, max);
-  el.value = val.toFixed(2);
-}
-
 function sanitizeEje(el){ el.value = el.value.replace(/\D/g, '').slice(0,3); }
 function validateEje(el){
   if (!el.value) return;
@@ -199,8 +170,8 @@ function checkEjeRequerido(cilEl, ejeEl){
   return !requerido || ok;
 }
 function validarEjesRequeridos(){
-  const ok1 = checkEjeRequerido($('od_cil'), $('od_eje'));
-  const ok2 = checkEjeRequerido($('oi_cil'), $('oi_eje'));
+  const ok1 = checkEjeRequerido(document.getElementById('od_cil'), document.getElementById('od_eje'));
+  const ok2 = checkEjeRequerido(document.getElementById('oi_cil'), document.getElementById('oi_eje'));
   if(!(ok1 && ok2) && window.Swal){
     Swal.fire({
       icon:'warning',
@@ -212,8 +183,9 @@ function validarEjesRequeridos(){
   return ok1 && ok2;
 }
 
-// --- SELECTS (0 seleccionado; + arriba, − abajo)
+// SELECTS (ESF/CIL)
 function setupGraduacionesSelects() {
+  const $id = (x)=>document.getElementById(x);
   const addOpt = (sel, val, label) => {
     const o = document.createElement('option');
     o.value = val;
@@ -241,52 +213,18 @@ function setupGraduacionesSelects() {
   };
 
   // ESF: ±30 (0.25) con signo
-  fillCentered($('od_esf'), 30, 0.25, true);
-  fillCentered($('oi_esf'), 30, 0.25, true);
+  fillCentered($id('od_esf'), 30, 0.25, true);
+  fillCentered($id('oi_esf'), 30, 0.25, true);
 
   // CIL: ±8 (0.25) con signo
-  fillCentered($('od_cil'), 8, 0.25, true);
-  fillCentered($('oi_cil'), 8, 0.25, true);
+  fillCentered($id('od_cil'), 8, 0.25, true);
+  fillCentered($id('oi_cil'), 8, 0.25, true);
 
   // validar EJE cuando cambia CIL
   [['od_cil','od_eje'], ['oi_cil','oi_eje']].forEach(([cilId, ejeId]) => {
-    const cil = $(cilId);
-    const eje = $(ejeId);
+    const cil = $id(cilId);
+    const eje = $id(ejeId);
     if (cil && eje) cil.addEventListener('change', () => checkEjeRequerido(cil, eje));
-  });
-}
-
-// --- inputs tipo "grad"
-function setupGraduacionesInputs(){
-  document.querySelectorAll('input.grad').forEach(el=>{
-    const isAdd = el.classList.contains('grad-add');
-    if (!el.dataset.step) {
-      if (isAdd) { el.dataset.min = '0'; el.dataset.max = '4'; el.dataset.step = '0.25'; }
-      else       { el.dataset.min = '-30'; el.dataset.max = '20'; el.dataset.step = '0.25'; }
-    }
-    el.addEventListener('input', ()=> sanitizeGradual(el, !isAdd));
-    el.addEventListener('blur',  ()=> validateGradual(el));
-    el.addEventListener('keydown', (e)=>{
-      if (e.key === ',') e.preventDefault();
-      if (isAdd && (e.key === '+' || e.key === '-')) e.preventDefault();
-    });
-  });
-  ['od_eje','oi_eje'].forEach(id=>{
-    const el = $(id);
-    if (!el) return;
-    el.addEventListener('input', ()=>{
-      sanitizeEje(el);
-      checkEjeRequerido(id==='od_eje' ? $('od_cil') : $('oi_cil'), el);
-    });
-    el.addEventListener('blur',  ()=> validateEje(el));
-  });
-  ['od_cil','oi_cil'].forEach(id=>{
-    const cil = $(id);
-    const eje = $(id==='od_cil' ? 'od_eje' : 'oi_eje');
-    if (!cil || !eje) return;
-    const h = ()=> checkEjeRequerido(cil, $(eje));
-    cil.addEventListener('input', h);
-    cil.addEventListener('blur',  h);
   });
 }
 
@@ -318,13 +256,13 @@ function resetGraduaciones() {
 // Dinero / Totales
 // =========================================================================
 function setupCalculos(){
-  const pc  = $('precio_cristal');
-  const pa  = $('precio_armazon');
-  const po  = $('precio_otro');
-  const os  = $('importe_obra_social'); // cobertura OS
-  const se  = $('sena');
-  const tot = $('total');
-  const sal = $('saldo');
+  const pc  = document.getElementById('precio_cristal');
+  const pa  = document.getElementById('precio_armazon');
+  const po  = document.getElementById('precio_otro');
+  const os  = document.getElementById('importe_obra_social'); // cobertura OS
+  const se  = document.getElementById('sena');
+  const tot = document.getElementById('total');
+  const sal = document.getElementById('saldo');
 
   function updateTotals(){
     const bruto    = parseMoney(pc?.value) + parseMoney(pa?.value) + parseMoney(po?.value);
@@ -351,113 +289,6 @@ function setupCalculos(){
 }
 
 // =========================================================================
-// Prefill desde historial (robusto y tolerante)
-// =========================================================================
-function doPrefillDesdeHistorial(){
-  let raw = null, data = null;
-  try { raw = sessionStorage.getItem('prefill_trabajo'); } catch {}
-  if (!raw) return;
-  try { data = JSON.parse(raw); } catch { data = null; }
-  try { sessionStorage.removeItem('prefill_trabajo'); } catch {}
-  if (!data) return;
-
-  const set = (id, val) => { const el = document.getElementById(id); if (el != null) el.value = val ?? ''; };
-  const setSelectIfExists = (id, val) => {
-    const el = document.getElementById(id); if (!el) return;
-    const v = String(val ?? '').trim(); if (!v) return;
-    const opt = Array.from(el.options).find(o =>
-      String(o.value).toUpperCase() === v.toUpperCase() ||
-      String(o.textContent).toUpperCase() === v.toUpperCase()
-    );
-    if (opt) el.value = opt.value;
-  };
-  const ddmmyy_to_yyyy_mm_dd = (txt) => {
-    if (!txt) return '';
-    const m = String(txt).match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
-    if (!m) return '';
-    const dd = m[1].padStart(2,'0');
-    const mm = m[2].padStart(2,'0');
-    const yy = m[3].length===2 ? ('20'+m[3]) : m[3];
-    return `${yy}-${mm}-${dd}`;
-  };
-  // match por número tolerante (0.25)
-  function setSelectGrad(id, val){
-    const sel = document.getElementById(id);
-    if (!sel || val === null || val === undefined || val === '') return;
-    let n = parseFloat(String(val).replace(',', '.'));
-    if (isNaN(n)) {
-      const vtxt = String(val).trim();
-      const opt = Array.from(sel.options).find(o => o.value === vtxt || o.textContent === vtxt);
-      if (opt) sel.value = opt.value;
-      return;
-    }
-    n = Math.round(n * 4) / 4;
-    const signed = Math.abs(n) < 1e-9 ? '0.00' : (n > 0 ? `+${Math.abs(n).toFixed(2)}` : `-${Math.abs(n).toFixed(2)}`);
-    const candidates = [signed, n.toFixed(2), String(n)];
-    for (const c of candidates){
-      const opt = Array.from(sel.options).find(o => o.value === c || o.textContent === c);
-      if (opt){ sel.value = opt.value; return; }
-    }
-    // fallback por cercanía
-    let bestIdx = -1, bestDiff = Infinity;
-    for (let i=0;i<sel.options.length;i++){
-      const ov = parseFloat(sel.options[i].value.replace('+',''));
-      if (isNaN(ov)) continue;
-      const diff = Math.abs(ov - n);
-      if (diff < 1e-6){ bestIdx = i; break; }
-      if (diff < bestDiff){ bestDiff = diff; bestIdx = i; }
-    }
-    if (bestIdx >= 0) sel.selectedIndex = bestIdx;
-  }
-  const pick = (...keys) => { for (const k of keys) if (k in data && data[k] !== '' && data[k] != null) return data[k]; return ''; };
-
-  set('numero_trabajo', pick('numero','num','nro','n_trabajo'));
-  const hidden = $('numero_trabajo_hidden'); if (hidden) hidden.value = $('numero_trabajo')?.value || '';
-
-  set('fecha', pick('fecha'));
-  set('fecha_retira', ddmmyy_to_yyyy_mm_dd(pick('retira','prometida','fecha_prometida')) || pick('retira','prometida','fecha_prometida') || '');
-
-  set('dni', pick('dni','documento'));
-  set('nombre', pick('nombre','cliente'));
-  set('telefono', pick('telefono','tel'));
-  set('cristal', pick('cristal','tipo_cristal'));
-  set('numero_armazon', pick('n_armazon','numero_armazon','n_arma','arma_n'));
-  set('armazon_detalle', pick('det_armazon','armazon','detalle','detalle_armazon'));
-  set('vendedor', pick('vendedor'));
-  setSelectIfExists('distancia_focal', pick('dist_focal','distancia_focal'));
-  set('obra_social', pick('obra_social','os'));
-
-  setSelectGrad('od_esf', pick('od_esf','OD_ESF','OD ESF','odEsf','esf_od','OD_ESFERA'));
-  setSelectGrad('od_cil', pick('od_cil','OD_CIL','OD CIL','odCil','cil_od','OD_CILINDRO'));
-  set('od_eje', (pick('od_eje','OD_EJE','OD EJE','odEje','eje_od') ?? '').toString());
-
-  setSelectGrad('oi_esf', pick('oi_esf','OI_ESF','OI ESF','oiEsf','esf_oi','OI_ESFERA'));
-  setSelectGrad('oi_cil', pick('oi_cil','OI_CIL','OI CIL','oiCil','cil_oi','OI_CILINDRO'));
-  set('oi_eje', (pick('oi_eje','OI_EJE','OI EJE','oiEje','eje_oi') ?? '').toString());
-
-  set('add', (pick('add','ADD') ?? '').toString());
-  set('dnp', (pick('dnp','DNP') ?? '').toString());
-
-  [
-    'numero_trabajo','fecha','fecha_retira','dni','nombre','telefono','cristal',
-    'numero_armazon','armazon_detalle','vendedor','obra_social',
-    'od_esf','od_cil','od_eje','oi_esf','oi_cil','oi_eje','add','dnp','distancia_focal'
-  ].forEach(id=>{
-    const el = document.getElementById(id);
-    if (el) { el.dispatchEvent(new Event('input',{bubbles:true})); el.dispatchEvent(new Event('change',{bubbles:true})); }
-  });
-
-  if (typeof window.__updateTotals === 'function') window.__updateTotals();
-
-  const foco = $('telefono') || $('cristal'); if (foco) foco.focus();
-
-  // aviso amistoso si venimos del historial
-  if (location.hash === '#prefill' && window.Swal) {
-    Swal.fire({toast:true, position:'top', timer:1500, showConfirmButton:false, icon:'info', title:'Datos cargados desde historial'});
-  }
-}
-
-// =========================================================================
 // Impresión / Limpieza
 // =========================================================================
 let __PRINT_LOCK = false;
@@ -467,10 +298,8 @@ function buildPrintArea(){
   try {
     if (typeof window.__buildPrintArea === 'function') {
       window.__buildPrintArea();   // print.js -> arma y print
-    } else if (window.buildAndPrintFromForm) {
-      window.buildAndPrintFromForm();
     } else {
-      console.warn('No existe __buildPrintArea/buildAndPrintFromForm');
+      console.warn('No existe __buildPrintArea');
     }
   } finally {
     setTimeout(() => { __PRINT_LOCK = false; }, 1200);
@@ -478,14 +307,14 @@ function buildPrintArea(){
 }
 
 function limpiarFormulario(){
-  const form=$('formulario'); if(!form) return;
+  const form=document.getElementById('formulario'); if(!form) return;
 
   form.reset();
   resetGraduaciones();
   cargarFechaHoy();
   recalcularFechaRetiro();
 
-  const gal=$('galeria-fotos'); if(gal) gal.innerHTML='';
+  const gal=document.getElementById('galeria-fotos'); if(gal) gal.innerHTML='';
   if (Array.isArray(window.__FOTOS)) window.__FOTOS.length = 0;
 
   if (typeof window.__updateTotals === 'function') window.__updateTotals();
@@ -511,7 +340,7 @@ function bloquearSubmitConEnter(form){
 }
 
 // =========================================================================
-/** INIT */
+// INIT
 // =========================================================================
 document.addEventListener('DOMContentLoaded', () => {
   // Cámara + Galería
@@ -521,9 +350,9 @@ document.addEventListener('DOMContentLoaded', () => {
   cargarFechaHoy();
 
   // Listeners para recalcular retiro
-  const entregaSel = $('entrega-select');
+  const entregaSel = document.getElementById('entrega-select');
   if (entregaSel) entregaSel.addEventListener('change', recalcularFechaRetiro);
-  const fechaEnc = $('fecha');
+  const fechaEnc = document.getElementById('fecha');
   if (fechaEnc) {
     fechaEnc.addEventListener('change', recalcularFechaRetiro);
     fechaEnc.addEventListener('blur',   recalcularFechaRetiro);
@@ -533,16 +362,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Graduaciones
   setupGraduacionesSelects();
-  setupGraduacionesInputs();
 
   // Totales
   setupCalculos();
 
-  // Prefill (solo si hay datos en sessionStorage)
-  doPrefillDesdeHistorial();
-
   // Teléfono → Nº de trabajo
-  const tel = $('telefono');
+  const tel = document.getElementById('telefono');
   if(tel){
     tel.addEventListener('blur', generarNumeroTrabajoDesdeTelefono);
     tel.addEventListener('change', generarNumeroTrabajoDesdeTelefono);
@@ -550,7 +375,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // DNI → buscar nombre/teléfono
-  const dni=$('dni'), nombre=$('nombre'), telefono=$('telefono'), indi=$('dni-loading');
+  const dni=document.getElementById('dni'),
+        nombre=document.getElementById('nombre'),
+        telefono=document.getElementById('telefono'),
+        indi=document.getElementById('dni-loading');
   if(dni){
     const doDNI = () => buscarNombrePorDNI(dni, nombre, telefono, indi);
     dni.addEventListener('blur', doDNI);
@@ -559,7 +387,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Nº armazón → buscar detalle/precio
-  const nAr=$('numero_armazon'), detAr=$('armazon_detalle'), prAr=$('precio_armazon');
+  const nAr=document.getElementById('numero_armazon'),
+        detAr=document.getElementById('armazon_detalle'),
+        prAr=document.getElementById('precio_armazon');
   if(nAr){
     const doAr = async () => {
       await buscarArmazonPorNumero(nAr, detAr, prAr);
@@ -577,20 +407,20 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // DNP 12/34
-  const dnp=$('dnp');
+  const dnp=document.getElementById('dnp');
   if(dnp){
     const fmt=(v)=> v.replace(/\D/g,'').slice(0,4).replace(/^(\d{0,2})(\d{0,2}).*$/,(_,a,b)=> b?`${a}/${b}`:a);
     dnp.addEventListener('input', ()=> dnp.value = fmt(dnp.value));
   }
 
   // Botones
-  const btnImp=$('btn-imprimir'); 
+  const btnImp=document.getElementById('btn-imprimir'); 
   if(btnImp){ btnImp.addEventListener('click', buildPrintArea); }
-  const btnClr=$('btn-limpiar'); 
+  const btnClr=document.getElementById('btn-limpiar'); 
   if(btnClr){ btnClr.addEventListener('click', limpiarFormulario); }
 
   // Guardar
-  const form=$('formulario');
+  const form=document.getElementById('formulario');
 
   // Bloquear submit con Enter — solo click guarda
   bloquearSubmitConEnter(form);
@@ -609,7 +439,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const pdfUrl = res?.pdfUrl || window.__LAST_PDF_URL || null;
 
-        // Modal con opciones: Imprimir / Abrir PDF / Cerrar
         if (window.Swal){
           const r = await Swal.fire({
             icon:'success',
@@ -637,6 +466,6 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-// opcional: exponer un par de utilidades globales (si alguna otra parte las usa)
+// utilidades globales (si otras partes las usan)
 window.generarNumeroTrabajoDesdeTelefono = generarNumeroTrabajoDesdeTelefono;
 window.recalcularFechaRetiro = recalcularFechaRetiro;
