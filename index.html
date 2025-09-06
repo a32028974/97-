@@ -1,4 +1,4 @@
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
@@ -30,7 +30,7 @@
         <div class="brand">
           <img src="logo.png" alt="Óptica Cristal" />
           <div>
-            <h1>Óptica Cristal v6 </h1>
+            <h1>Óptica Cristal v6</h1>
             <p class="muted small">San Miguel • Argentina</p>
           </div>
         </div>
@@ -46,7 +46,6 @@
 
     <!-- Formulario principal -->
     <form id="formulario" class="grid two" autocomplete="off">
-      <!-- 👇 agregado: hidden que usa guardar.js -->
       <input type="hidden" id="numero_trabajo_hidden" name="numero_trabajo_hidden" />
       <input type="hidden" id="pack_url" name="pdf" />
 
@@ -100,7 +99,6 @@
           </div>
         </div>
 
-        <!-- OBRAS SOCIALES -->
         <div class="row cols-2">
           <div>
             <label for="obra_social">Obra social</label>
@@ -253,17 +251,6 @@
           </div>
         </section>
       </aside>
-
-       <!-- Historial -->
-<section id="historial">
-  <div class="hist-top">
-    <input id="hist-buscar" type="search"
-      placeholder="Buscar: apellido, nombre, DNI, teléfono o @N°Trabajo" />
-  </div>
-  <div id="hist-lista"></div>
-</section>
-
-
     </form>
   </div>
 
@@ -287,15 +274,6 @@
   </div>
 
   <!-- JS -->
-  <script>
-  (function(){
-    if (location.hash === '#prefill' && window.Swal) {
-      Swal.fire({toast:true, position:'top', timer:1500, showConfirmButton:false, icon:'info', title:'Datos cargados desde historial'});
-    }
-  })();
-</script>
-
-  <script type="module" src="./js/main.js?v=13"></script>
-  <script type="module" src="./js/hist-mini.js?v=1"></script>
+  <script type="module" src="./js/main.js?v=14"></script>
 </body>
 </html>
