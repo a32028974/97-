@@ -38,7 +38,7 @@
           <div>
             <label for="numero_trabajo">Número de trabajo</label>
             <input id="numero_trabajo" name="numero_trabajo" form="formulario"
-                   inputmode="numeric" autocomplete="off" />
+                   inputmode="numeric" autocomplete="off" tabindex="99" />
           </div>
         </div>
       </div>
@@ -73,25 +73,25 @@
         <div class="row cols-3">
           <div>
             <label for="dni">DNI</label>
-            <input id="dni" name="dni" inputmode="numeric" />
+            <input id="dni" name="dni" inputmode="numeric" tabindex="1" />
             <div id="dni-loading" class="inline-loader" hidden>
               <span class="pill">Buscando…</span>
             </div>
           </div>
           <div>
             <label for="nombre">Apellido y nombre</label>
-            <input id="nombre" name="nombre" placeholder="Apellido primero" />
+            <input id="nombre" name="nombre" placeholder="Apellido primero" tabindex="2" />
           </div>
           <div>
             <label for="telefono">Teléfono</label>
-            <input id="telefono" name="telefono" autocomplete="tel" placeholder="11 2345 6789" />
+            <input id="telefono" name="telefono" autocomplete="tel" placeholder="11 2345 6789" tabindex="3" />
           </div>
         </div>
 
         <div class="row cols-2">
           <div>
             <label for="cristal">Tipo de cristal</label>
-            <input id="cristal" name="cristal" placeholder="Monofocal / Bifocal / etc." />
+            <input id="cristal" name="cristal" placeholder="Monofocal / Bifocal / etc." tabindex="4" />
           </div>
           <div>
             <label for="precio_cristal">Precio cristal</label>
@@ -105,7 +105,7 @@
             <input id="obra_social" name="obra_social" placeholder="Ej: OSDE, Sancor, IOMA…" />
           </div>
           <div>
-            <label for="importe_obra_social">Precio obra social</label>
+            <label for="importe_obra_social">- Descuenta obra social</label>
             <div class="money">
               <input id="importe_obra_social" name="importe_obra_social" inputmode="numeric" />
             </div>
@@ -123,7 +123,7 @@
             <select id="od_cil" name="od_cil"></select>
           </div>
           <div>
-            <label for="od_eje">OD EJE (0–180)</label>
+            <label for="od_eje">OD EJE</label>
             <input id="od_eje" name="od_eje" inputmode="numeric" placeholder="EJE" />
           </div>
           <div>
@@ -151,7 +151,7 @@
             <select id="oi_cil" name="oi_cil"></select>
           </div>
           <div>
-            <label for="oi_eje">OI EJE (0–180)</label>
+            <label for="oi_eje">OI EJE</label>
             <input id="oi_eje" name="oi_eje" inputmode="numeric" placeholder="EJE" />
           </div>
         </div>
@@ -163,7 +163,7 @@
           </div>
           <div>
             <label for="dnp">DNP (OD/OI)</label>
-            <input id="dnp" name="dnp" placeholder="12/34" />
+            <input id="dnp" name="dnp" placeholder="30/30" />
           </div>
           <div>
             <label for="add">ADD</label>
