@@ -362,32 +362,16 @@ function setupTabYFoco(){
 
   // Autofocus inicial a DNI
   const dni = $('dni');
-  focusTo(dni);
+  try { dni?.focus(); dni?.select?.(); } catch(_) {}
 
-  // Flujo: DNI (buscar) → NOMBRE → (Enter) → TELÉFONO
+  // Enter en NOMBRE → TELÉFONO
   const nombre   = $('nombre');
   const telefono = $('telefono');
-  const indi     = $('dni-loading');
-
-  if (dni) {
-    const doDNI = () => {
-      // Usamos tu función (espera nodos)
-      buscarNombrePorDNI(dni, nombre, telefono, indi);
-      // Después de disparar la búsqueda, llevamos el foco a Nombre
-      if (nombre) {
-        setTimeout(() => { focusTo(nombre); moveCaretToEnd(nombre); }, 0);
-      }
-    };
-    dni.addEventListener('blur', doDNI);
-    dni.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); doDNI(); } });
-    dni.addEventListener('input', ()=>{ dni.value = dni.value.replace(/\D/g,''); });
-  }
-
-  if (nombre) {
+  if (nombre && telefono) {
     nombre.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
         e.preventDefault();
-        if (telefono) { focusTo(telefono); moveCaretToEnd(telefono); }
+        try { telefono.focus(); telefono.select?.(); } catch(_) {}
       }
     });
   }
