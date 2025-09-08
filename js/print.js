@@ -1,42 +1,59 @@
-// /RECETAS/js/print.js — v2025-09-08 (A4 en iframe, sin "screenshot")
+// /js/print.js — v2025-09-08r (robusto: usa #print-root o cae a .wrap / body)
 
-/**
- * 1) Toma el contenido de #print-root (tu layout ya armado con los datos)
- * 2) Lo copia a un iframe oculto con sólo los CSS necesarios
- * 3) Llama a print() dentro del iframe (Chrome/Android respeta @page y A4)
- */
-function __buildPrintHTML(printNode) {
-  // Tomamos TODOS tus <link rel="stylesheet"> para mantener estilos
-  const cssLinks = Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
-    .map((l) => `<link rel="stylesheet" href="${l.href}">`)
+function __collectStyles() {
+  // Copiamos todos los CSS <link rel="stylesheet"> que ya cargaste
+  const links = Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
+    .map(l => `<link rel="stylesheet" href="${l.href}">`)
     .join('');
-
-  // Hardening para impresión A4 y ocultar lo que no es de papel
-  const hardCSS = `
+  // Refuerzos para impresión A4
+  const hard = `
     <style>
       @page { size: A4; margin: 8mm; }
-      html, body { background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      html, body { background:#fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; height:auto!important; overflow:visible!important; }
       .no-print { display: none !important; }
       .print-only { display: block !important; }
-      /* Por si tu layout depende de .sheet */
       .sheet { width: 194mm; box-sizing: border-box; padding: 6mm; page-break-inside: avoid; }
-      /* Evitar scroll y recortes raros en Android */
-      html, body { height: auto !important; overflow: visible !important; }
     </style>
   `;
+  return links + hard;
+}
 
+function __resolvePrintableNode() {
+  // 1) Preferimos #print-root si existe y tiene contenido
+  const root = document.getElementById('print-root');
+  if (root && root.children.length > 0) return root;
+
+  // 2) Si no, clonamos .wrap (tu layout principal)
+  const wrap = document.querySelector('.wrap');
+  if (wrap) {
+    const tmp = document.createElement('div');
+    tmp.className = 'sheet'; // Para que aplique ancho A4
+    tmp.appendChild(wrap.cloneNode(true));
+    // Quitamos lo que sea no imprimible
+    tmp.querySelectorAll('.no-print').forEach(n => n.remove());
+    return tmp;
+  }
+
+  // 3) Fallback: el body entero
+  const tmp2 = document.createElement('div');
+  tmp2.className = 'sheet';
+  tmp2.innerHTML = document.body.innerHTML;
+  tmp2.querySelectorAll('.no-print').forEach(n => n.remove());
+  return tmp2;
+}
+
+function __buildPrintHTML(contentNode) {
   return `
     <!doctype html>
     <html lang="es">
     <head>
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width, initial-scale=1">
-      ${cssLinks}
-      ${hardCSS}
+      ${__collectStyles()}
       <title>Imprimir</title>
     </head>
     <body>
-      ${printNode.outerHTML}
+      ${contentNode.outerHTML}
     </body>
     </html>
   `;
@@ -45,51 +62,34 @@ function __buildPrintHTML(printNode) {
 function __printInIframe(html) {
   const iframe = document.createElement('iframe');
   iframe.style.position = 'fixed';
-  iframe.style.right = '0';
-  iframe.style.bottom = '0';
-  iframe.style.width = '0';
-  iframe.style.height = '0';
-  iframe.style.border = '0';
+  iframe.style.right = '0'; iframe.style.bottom = '0';
+  iframe.style.width  = '0'; iframe.style.height = '0'; iframe.style.border = '0';
   iframe.setAttribute('aria-hidden', 'true');
   document.body.appendChild(iframe);
 
   const doc = iframe.contentDocument || iframe.contentWindow.document;
-  doc.open();
-  doc.write(html);
-  doc.close();
+  doc.open(); doc.write(html); doc.close();
 
-  // Importante: esperar a que carguen CSS/imágenes (QR) antes de imprimir
-  const tryPrint = () => {
-    // Algunos navegadores necesitan un pequeño delay extra
+  const go = () => {
     setTimeout(() => {
-      iframe.contentWindow.focus();
-      iframe.contentWindow.print();
-      // Limpieza
-      setTimeout(() => { document.body.removeChild(iframe); }, 1500);
-    }, 50);
+      try {
+        iframe.contentWindow.focus();
+        iframe.contentWindow.print();
+      } finally {
+        setTimeout(() => document.body.removeChild(iframe), 1200);
+      }
+    }, 80);
   };
-
-  // onload dispara cuando el HTML está parseado; damos tiempo a CSS/IMG
-  iframe.onload = () => setTimeout(tryPrint, 200);
+  iframe.onload = () => setTimeout(go, 200);
 }
 
-/**
- * Punto de entrada: arma el HTML de #print-root y lo imprime en iframe.
- * Llamada esperada desde tu main: window.__buildPrintArea()
- */
 function buildPrintArea() {
-  const root = document.getElementById('print-root');
-  if (!root) {
-    console.warn('[print] No existe #print-root para imprimir.');
-    if (window.Swal) Swal.fire('Atención', 'No se encontró el contenido a imprimir (#print-root).', 'warning');
-    return;
-  }
-  // IMPORTANTE: si #print-root se construye dinámicamente, asegurate de
-  // tenerlo listo ANTES de llamar a buildPrintArea().
-  const html = __buildPrintHTML(root);
+  // Si vos armás #print-root dinámicamente, dejalo listo ANTES de llamar acá.
+  const node = __resolvePrintableNode();
+  const html = __buildPrintHTML(node);
   __printInIframe(html);
 }
 
-// Exponemos la función para que el main la invoque
+// API pública
 window.__buildPrintArea = buildPrintArea;
-export {}; // ES module noop
+export {};
