@@ -1,30 +1,32 @@
-// /js/print.js — v2025-09-06v (A4 vertical + talón fijo 145/5/55mm, 130mm de alto, QR optimizado)
+// /js/print.js — v2025-09-08-A4+QR (desktop=iframe, mobile=popup)
+// Cambios:
+// - @page: A4 (no Letter)
+// - Sin nudge negativo: evita recorte superior
+// - Generación de Barcode (CODE128) y QR (pack_url || número)
+
 (function () {
   // ===== Tamaños (A4) =====
-  const PAGE_W_MM = 210;      // ancho hoja
-  const PAGE_H_MM = 297;      // alto hoja
-  const LEFT_W_MM = 145;      // ficha principal
-  const GUTTER_MM = 5;        // separación/guía de corte
-  const RIGHT_W_MM = 55;      // talón
-  const MAX_COL_H_MM = 130;   // altura máxima de cada bloque
-  const BAR_W_MM = 55;        // ancho código de barras
-  const BAR_H_MM = 8;         // alto código de barras
+  const PAGE_W_MM = 210;
+  const PAGE_H_MM = 297;
+  const LEFT_W_MM = 145;
+  const GUTTER_MM = 5;
+  const RIGHT_W_MM = 55;
+  const MAX_COL_H_MM = 130;
+  const BAR_W_MM = 55;
+  const BAR_H_MM = 8;
 
   // ===== Detección simple de móvil =====
   const UA = navigator.userAgent || '';
   const IS_MOBILE = /Android|iPhone|iPad|iPod/i.test(UA);
 
-  // Nudge suave sólo en móviles (para “subir” un poco sin cortar)
-  const NUDGE_TOP_MM  = IS_MOBILE ? -6 : 0;
-  const NUDGE_LEFT_MM = IS_MOBILE ?  0 : 0;
-
-  // Colchón virtual por si hay nudge negativo
+  // IMPORTANTE: no “empujamos” hacia arriba para evitar cortes
+  const NUDGE_TOP_MM  = 0;
+  const NUDGE_LEFT_MM = 0;
   const EXTRA_W_MM = Math.max(0, -NUDGE_LEFT_MM);
   const EXTRA_H_MM = Math.max(0, -NUDGE_TOP_MM);
 
-  // ===== Helpers =====
+  // ===== Helpers DOM/Form =====
   const $ = (id) => document.getElementById(id);
-
   const getSelText = (el) => {
     if (!el) return '';
     if (el.tagName === 'SELECT') {
@@ -44,7 +46,6 @@
     const n = Math.max(0, normNumberLike(v));
     return '$ ' + n.toLocaleString('es-AR', { maximumFractionDigits: 0 });
   }
-
   function parseDateLike(v) {
     if (!v) return null;
     const s = String(v).trim();
@@ -68,23 +69,27 @@
 
   // ===== Recolección de datos del form =====
   function collectForm() {
-    const data = {
-      numero: getSelText($('numero_trabajo')),
+    const retiraD = (()=>{
+      const d = parseDateLike(getSelText($('fecha_retira')));
+      return d ? ddmmyyyy(d) : getSelText($('fecha_retira'));
+    })();
+
+    const numero    = getSelText($('numero_trabajo'));
+    const packUrl   = getSelText($('pack_url')); // si existe, lo usamos para el QR
+    const qrData    = packUrl || numero || '';
+
+    return {
+      numero,
       fecha:  getSelText($('fecha')),
       entrega: getSelText($('entrega-select')),
-      retira: (()=>{
-        const d = parseDateLike(getSelText($('fecha_retira')));
-        return d ? ddmmyyyy(d) : getSelText($('fecha_retira'));
-      })(),
+      retira: retiraD,
       dni: getSelText($('dni')),
       nombre: getSelText($('nombre')),
       tel: getSelText($('telefono')),
-
       cristal: getSelText($('cristal')),
       precio_cristal: money(getSelText($('precio_cristal'))),
       obra_social: getSelText($('obra_social')),
       desc_obra: money(getSelText($('importe_obra_social'))),
-
       od_esf: getSelText($('od_esf')),
       od_cil: getSelText($('od_cil')),
       od_eje: getSelText($('od_eje')),
@@ -95,28 +100,23 @@
       dnp: getSelText($('dnp')),
       add: getSelText($('add')),
       distancia: getSelText($('distancia_focal')),
-
       n_armazon: getSelText($('numero_armazon')),
       det_armazon: getSelText($('armazon_detalle')),
       precio_armazon: money(getSelText($('precio_armazon'))),
-
       otro_concepto: getSelText($('otro_concepto')),
       precio_otro: money(getSelText($('precio_otro'))),
-
       total: money(getSelText($('total'))),
       sena: money(getSelText($('sena'))),
       saldo: money(getSelText($('saldo'))),
-
       vendedor: getSelText($('vendedor')),
-      forma_pago: getSelText($('forma_pago'))
+      forma_pago: getSelText($('forma_pago')),
+      qrData
     };
-    return data;
   }
 
   // ===== Render principal (boleta + talón) =====
   function renderTicket(d) {
     const safe = (x) => (x || '').replace(/[<>]/g, s => ({'<':'&lt;','>':'&gt;'}[s]));
-    const IMG_LOGO = 'logo.png';
     const BRAND = '#110747';
 
     return `
@@ -131,9 +131,7 @@
             <div class="sub">San Miguel • Argentina</div>
           </div>
         </div>
-        <div class="barwrap">
-          <svg id="barcode"></svg>
-        </div>
+        <div class="barwrap"><svg id="barcode"></svg></div>
         <div class="nro">
           <div class="lbl">Nº trabajo</div>
           <div class="val mono">${safe(d.numero)}</div>
@@ -190,7 +188,7 @@
 
     <div class="right">
       <div class="r-head">
-        <img class="r-logo" src="${IMG_LOGO}" alt="">
+        <div class="r-logo-dot"></div>
         <div>
           <div class="r-title">Óptica Cristal</div>
           <div class="r-sub">Comprobante de retiro</div>
@@ -201,51 +199,41 @@
       <div class="r-kv"><div class="rk">Retira</div><div class="rv">${safe(d.retira)}</div></div>
       <div class="r-kv"><div class="rk">Saldo</div><div class="rv">${d.saldo}</div></div>
 
-      <div class="r-qr">
-        <!-- si querés QR base64 ponelo acá -->
-        <!-- <img src="data:image/png;base64,..." alt="QR" /> -->
-      </div>
+      <div class="r-qr"><div id="qrcode"></div></div>
     </div>
   </div>
 </div>`;
   }
 
-  // ===== IFRAME (desktop) =====
-  function printInIframe(htmlInner, numero) {
+  // ===== CSS común (A4 + layout) =====
+  function commonCSS() {
     const BRAND = '#110747';
-    const css = `
+    return `
     <style>
-      @page { size: ${PAGE_W_MM + EXTRA_W_MM}mm ${PAGE_H_MM + EXTRA_H_MM}mm; margin: 0; }
+      @page { size: A4; margin: 0; } /* Fuerza A4 en el diálogo del SO */
       * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       html, body { margin:0; padding:0; background:#fff; color:#111; font: 9.5pt/1.3 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; }
       .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
-
       .sheet {
         width: ${PAGE_W_MM + EXTRA_W_MM}mm;
         height:${PAGE_H_MM + EXTRA_H_MM}mm;
-        position: fixed; inset: 0 0 auto 0;
         overflow: hidden;
       }
       .canvas {
         width:${PAGE_W_MM}mm; height:${PAGE_H_MM}mm;
-        padding: 6mm 5mm 0; /* pequeño resguardo visual */
+        padding: 8mm 6mm 6mm; /* padding top > 0 para evitar cortes de cabecera */
       }
-
-      /* Grid fija en mm: 145 | 5 | 55 */
       .canvas {
         display: grid;
         grid-template-columns: ${LEFT_W_MM}mm ${GUTTER_MM}mm ${RIGHT_W_MM}mm;
         align-items: start;
-        column-gap: 0;
       }
-
       .left, .right { max-height:${MAX_COL_H_MM}mm; overflow:hidden; }
       .left  { padding-right: 2mm; }
       .right { padding-left: 2mm; }
 
       .cut { width:${GUTTER_MM}mm; height:${MAX_COL_H_MM}mm; border-left: 1px dashed #cfd6e4; }
 
-      /* Cabecera ficha */
       .hdr { display:grid; grid-template-columns: 1fr ${BAR_W_MM}mm 1fr; align-items: start; column-gap: 3mm; margin-bottom: 2mm; }
       .brand { display:flex; align-items:flex-start; gap:2mm; }
       .dot { width:3mm; height:3mm; background:${BRAND}; border-radius:50%; margin-top: 1mm; }
@@ -273,10 +261,8 @@
       .total-line .big { font-weight:800; }
       .vendedor { color:#505a6b; }
 
-      /* Talón */
-      .right { border-left: 0; }
       .r-head { display:grid; grid-template-columns: 7mm 1fr; column-gap: 2mm; align-items:center; margin-bottom: 1.2mm; }
-      .r-logo { width:7mm; height:7mm; object-fit:contain; }
+      .r-logo-dot { width:7mm; height:7mm; background:${BRAND}; border-radius:50%; }
       .r-title { font-weight:800; color:${BRAND}; line-height:1.1; }
       .r-sub { color:#6b7280; font-size:8pt; line-height:1.1; margin-top:.2mm; }
 
@@ -285,12 +271,14 @@
       .rv { font-weight:700; }
 
       .r-qr { margin-top: 2mm; display:flex; justify-content:center; }
-      .r-qr img { width:34mm; height:34mm; object-fit:contain; image-rendering:auto; }
-
-      /* Colorear totales/acentos */
-      .box-t, .title, .r-title { color:${BRAND}; }
+      .r-qr #qrcode { width:34mm; height:34mm; }
+      .r-qr img, .r-qr canvas { width:34mm; height:34mm; object-fit:contain; }
     </style>`;
+  }
 
+  // ===== IFRAME (desktop) =====
+  function printInIframe(htmlInner, numero, qrData) {
+    const css = commonCSS();
     const ifr = document.createElement('iframe');
     Object.assign(ifr.style, { position:'fixed', right:'0', bottom:'0', width:'0', height:'0', border:'0', visibility:'hidden' });
     document.body.appendChild(ifr);
@@ -306,12 +294,15 @@
       try {
         const svg = doc.getElementById('barcode');
         if (w.JsBarcode && svg) {
-          w.JsBarcode(svg, String(numero || ''), {
-            format: 'CODE128',
-            displayValue: false,
-            margin: 0,
-            height: 40
-          });
+          w.JsBarcode(svg, String(numero || ''), { format: 'CODE128', displayValue: false, margin: 0, height: 40 });
+        }
+      } catch (_) {}
+
+      try {
+        const qrCell = doc.getElementById('qrcode');
+        if (qrCell && w.QRCode) {
+          // QR: si hay pack_url lo usamos; si no, número
+          new w.QRCode(qrCell, { text: String(qrData || ''), width: 180, height: 180, correctLevel: w.QRCode.CorrectLevel.M });
         }
       } catch (_) {}
 
@@ -320,98 +311,26 @@
       setTimeout(() => { try { w.focus(); w.print(); } catch {} setTimeout(cleanup, 500); }, 60);
     };
 
-    if (w.JsBarcode) {
-      render();
-    } else {
+    // Cargamos librerías si no están
+    const ensureJsBarcode = () => new Promise((res) => {
+      if (w.JsBarcode) return res();
       const s = doc.createElement('script');
       s.src = 'https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js';
-      s.onload = render;
-      s.onerror = render;
-      doc.head.appendChild(s);
-    }
+      s.onload = res; s.onerror = res; doc.head.appendChild(s);
+    });
+    const ensureQRCode = () => new Promise((res) => {
+      if (w.QRCode) return res();
+      const s = doc.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+      s.onload = res; s.onerror = res; doc.head.appendChild(s);
+    });
+
+    Promise.all([ensureJsBarcode(), ensureQRCode()]).then(render);
   }
 
-  // === NUEVO: impresión en ventana emergente (fix Chrome/Android) ===
-  function printInPopup(htmlInner, numero) {
-    const BRAND = '#110747';
-    const css = `
-    <style>
-      @page { size: ${PAGE_W_MM + EXTRA_W_MM}mm ${PAGE_H_MM + EXTRA_H_MM}mm; margin: 0; }
-      * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-      html, body { margin:0; padding:0; background:#fff; color:#111; font: 9.5pt/1.3 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; }
-      .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
-
-      .sheet {
-        width: ${PAGE_W_MM + EXTRA_W_MM}mm;
-        height:${PAGE_H_MM + EXTRA_H_MM}mm;
-        position: fixed; inset: 0 0 auto 0;
-        overflow: hidden;
-      }
-      .canvas {
-        width:${PAGE_W_MM}mm; height:${PAGE_H_MM}mm;
-        padding: 6mm 5mm 0; /* pequeño resguardo visual */
-      }
-
-      /* Grid fija en mm: 145 | 5 | 55 */
-      .canvas {
-        display: grid;
-        grid-template-columns: ${LEFT_W_MM}mm ${GUTTER_MM}mm ${RIGHT_W_MM}mm;
-        align-items: start;
-        column-gap: 0;
-      }
-
-      .left, .right { max-height:${MAX_COL_H_MM}mm; overflow:hidden; }
-      .left  { padding-right: 2mm; }
-      .right { padding-left: 2mm; }
-
-      .cut { width:${GUTTER_MM}mm; height:${MAX_COL_H_MM}mm; border-left: 1px dashed #cfd6e4; }
-
-      /* Cabecera ficha */
-      .hdr { display:grid; grid-template-columns: 1fr ${BAR_W_MM}mm 1fr; align-items: start; column-gap: 3mm; margin-bottom: 2mm; }
-      .brand { display:flex; align-items:flex-start; gap:2mm; }
-      .dot { width:3mm; height:3mm; background:${BRAND}; border-radius:50%; margin-top: 1mm; }
-      .title { font-weight:800; color:${BRAND}; }
-      .sub { color:#6b7280; font-size: 8.5pt; margin-top:.2mm; }
-      .barwrap { width:${BAR_W_MM}mm; height:${BAR_H_MM}mm; display:flex; align-items:center; justify-content:center; }
-      .barwrap svg { width:${BAR_W_MM}mm; height:${BAR_H_MM}mm; }
-      .nro { justify-self:end; text-align:right; }
-      .nro .lbl { font-size:8pt; color:#6b7280; }
-      .nro .val { font-weight:800; }
-
-      .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap: 1.8mm 3mm; }
-      .kv { display:grid; grid-template-columns: 22mm 1fr; column-gap: 1.8mm; align-items: baseline; }
-      .kv .k { color:#505a6b; font-size: 8.5pt; }
-      .kv .v { font-weight:600; }
-
-      .grades { display:grid; grid-template-columns: 1fr 1fr; gap: 2.2mm; margin: 2mm 0; }
-      .box { border:1px solid #d8dbe0; border-radius: 1mm; overflow:hidden; }
-      .box-t { background:#f2f4f7; padding: .8mm 1.6mm; font-weight:700; font-size:9pt; color:${BRAND}; }
-      .tbl { width:100%; border-collapse: collapse; }
-      .tbl th, .tbl td { border-top:1px solid #e5e7eb; padding: .8mm 1.2mm; text-align:center; font-size:9pt; }
-
-      .totals { display:grid; grid-template-columns: 1fr 1fr; gap: 1mm 3mm; }
-      .total-line { grid-column: 1 / -1; display:flex; justify-content: space-between; align-items:center; border-top:1px dashed #cfd6e4; padding-top:1.4mm; margin-top:.6mm; }
-      .total-line .big { font-weight:800; }
-      .vendedor { color:#505a6b; }
-
-      /* Talón */
-      .right { border-left: 0; }
-      .r-head { display:grid; grid-template-columns: 7mm 1fr; column-gap: 2mm; align-items:center; margin-bottom: 1.2mm; }
-      .r-logo { width:7mm; height:7mm; object-fit:contain; }
-      .r-title { font-weight:800; color:${BRAND}; line-height:1.1; }
-      .r-sub { color:#6b7280; font-size:8pt; line-height:1.1; margin-top:.2mm; }
-
-      .r-kv { display:grid; grid-template-columns: 16mm 1fr; gap: 1.2mm; align-items:baseline; margin: .6mm 0; }
-      .rk { color:#505a6b; font-size:8.5pt; }
-      .rv { font-weight:700; }
-
-      .r-qr { margin-top: 2mm; display:flex; justify-content:center; }
-      .r-qr img { width:34mm; height:34mm; object-fit:contain; image-rendering:auto; }
-
-      /* Colorear totales/acentos */
-      .box-t, .title, .r-title { color:${BRAND}; }
-    </style>`;
-
+  // ===== POPUP (móvil/tablet) =====
+  function printInPopup(htmlInner, numero, qrData) {
+    const css = commonCSS();
     const win = window.open('', '_blank');
     if (!win) { alert('Permití la ventana emergente para imprimir.'); return; }
 
@@ -424,36 +343,44 @@
       try {
         const svg = doc.getElementById('barcode');
         if (win.JsBarcode && svg) {
-          win.JsBarcode(svg, String(numero || ''), {
-            format: 'CODE128',
-            displayValue: false,
-            margin: 0,
-            height: 40
-          });
+          win.JsBarcode(svg, String(numero || ''), { format: 'CODE128', displayValue: false, margin: 0, height: 40 });
         }
       } catch (_) {}
 
-      setTimeout(() => { try { win.focus(); win.print(); } catch {} }, 60);
-      // No se cierra sola para evitar interferir con diálogos del SO.
+      try {
+        const qrCell = doc.getElementById('qrcode');
+        if (qrCell && win.QRCode) {
+          new win.QRCode(qrCell, { text: String(qrData || ''), width: 180, height: 180, correctLevel: win.QRCode.CorrectLevel.M });
+        }
+      } catch (_) {}
+
+      setTimeout(() => { try { win.focus(); win.print(); } catch {} }, 80);
+      // No cierro sola la ventana para no interferir con el diálogo del SO.
     };
 
-    if (win.JsBarcode) {
-      render();
-    } else {
+    // Carga de librerías
+    const ensureJsBarcode = () => new Promise((res) => {
+      if (win.JsBarcode) return res();
       const s = doc.createElement('script');
       s.src = 'https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js';
-      s.onload = render;
-      s.onerror = render;
-      doc.head.appendChild(s);
-    }
+      s.onload = res; s.onerror = res; doc.head.appendChild(s);
+    });
+    const ensureQRCode = () => new Promise((res) => {
+      if (win.QRCode) return res();
+      const s = doc.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+      s.onload = res; s.onerror = res; doc.head.appendChild(s);
+    });
+
+    Promise.all([ensureJsBarcode(), ensureQRCode()]).then(render);
   }
 
   // ===== API pública =====
   window.__buildPrintArea = function () {
     const data = collectForm();
     const html = renderTicket(data);
-    // Desktop = iframe (como ahora). Mobile = popup (soluciona Chrome/Android).
-    if (IS_MOBILE) printInPopup(html, data.numero);
-    else printInIframe(html, data.numero);
+    // Desktop = iframe (como venía funcionando). Mobile = popup (evita screenshot).
+    if (IS_MOBILE) printInPopup(html, data.numero, data.qrData);
+    else           printInIframe(html, data.numero, data.qrData);
   };
 })();
