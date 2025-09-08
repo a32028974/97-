@@ -1,6 +1,6 @@
-// /js/main.js — build limpio (sin historial/mini)
+// /js/main.js — build estable + mejoras foco/tab + vendedor persistente — v2025-09-07
 
-// ===== Imports =====
+// ===== Imports (tuyos, intactos) =====
 import './print.js?v=2025-09-05h';
 import { sanitizePrice, parseMoney } from './utils.js';
 import { obtenerNumeroTrabajoDesdeTelefono } from './numeroTrabajo.js';
@@ -106,7 +106,7 @@ function progressAPI(steps = PROGRESS_STEPS) {
 }
 
 // =========================================================================
-// Fechas
+/** Fechas */
 // =========================================================================
 function parseFechaDDMMYY(str){
   if(!str) return new Date();
@@ -138,7 +138,7 @@ function recalcularFechaRetiro(){
 }
 
 // =========================================================================
-// Nº de trabajo desde teléfono
+/** Nº de trabajo desde teléfono */
 // =========================================================================
 const generarNumeroTrabajoDesdeTelefono = () => {
   const tel = $('telefono'), out = $('numero_trabajo');
@@ -147,7 +147,7 @@ const generarNumeroTrabajoDesdeTelefono = () => {
 };
 
 // =========================================================================
-// Graduaciones (validaciones)
+/** Graduaciones (validaciones) */
 // =========================================================================
 function clamp(n, min, max){ return Math.min(Math.max(n, min), max); }
 function sanitizeEje(el){ el.value = el.value.replace(/\D/g, '').slice(0,3); }
@@ -229,7 +229,7 @@ function setupGraduacionesSelects() {
 }
 
 // =========================================================================
-// Reset graduaciones
+/** Reset graduaciones */
 // =========================================================================
 function resetGraduaciones() {
   ['od_esf','oi_esf','od_cil','oi_cil'].forEach(id => {
@@ -253,7 +253,7 @@ function resetGraduaciones() {
 }
 
 // =========================================================================
-// Dinero / Totales
+/** Dinero / Totales */
 // =========================================================================
 function setupCalculos(){
   const pc  = document.getElementById('precio_cristal');
@@ -289,7 +289,7 @@ function setupCalculos(){
 }
 
 // =========================================================================
-// Impresión / Limpieza
+/** Impresión / Limpieza */
 // =========================================================================
 let __PRINT_LOCK = false;
 function buildPrintArea(){
@@ -321,7 +321,7 @@ function limpiarFormulario(){
 }
 
 // =========================================================================
-// SOLO SE GUARDA CON CLICK: bloquear submit con Enter
+/** SOLO SE GUARDA CON CLICK: bloquear submit con Enter */
 // =========================================================================
 function bloquearSubmitConEnter(form){
   if (!form) return;
@@ -340,7 +340,61 @@ function bloquearSubmitConEnter(form){
 }
 
 // =========================================================================
-// INIT
+/** Mejoras: vendedor persistente + foco y tabulación */
+// =========================================================================
+function setupVendedorPersistente(){
+  const vendedor = $('vendedor');
+  if (!vendedor) return;
+  const guardado = localStorage.getItem('ultimoVendedor');
+  if (guardado) vendedor.value = guardado;
+  vendedor.addEventListener('change', () => {
+    localStorage.setItem('ultimoVendedor', (vendedor.value || '').toString().trim());
+  });
+}
+
+function focusTo(el){ try{ el?.focus(); el?.select?.(); }catch(_){ } }
+function moveCaretToEnd(el){ try{ const v=el.value; el.value=''; el.value=v; }catch(_){ } }
+
+function setupTabYFoco(){
+  // Forzar "Número de trabajo" como último en Tab
+  const num = $('numero_trabajo');
+  if (num) num.setAttribute('tabindex','999');
+
+  // Autofocus inicial a DNI
+  const dni = $('dni');
+  focusTo(dni);
+
+  // Flujo: DNI (buscar) → NOMBRE → (Enter) → TELÉFONO
+  const nombre   = $('nombre');
+  const telefono = $('telefono');
+  const indi     = $('dni-loading');
+
+  if (dni) {
+    const doDNI = () => {
+      // Usamos tu función (espera nodos)
+      buscarNombrePorDNI(dni, nombre, telefono, indi);
+      // Después de disparar la búsqueda, llevamos el foco a Nombre
+      if (nombre) {
+        setTimeout(() => { focusTo(nombre); moveCaretToEnd(nombre); }, 0);
+      }
+    };
+    dni.addEventListener('blur', doDNI);
+    dni.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); doDNI(); } });
+    dni.addEventListener('input', ()=>{ dni.value = dni.value.replace(/\D/g,''); });
+  }
+
+  if (nombre) {
+    nombre.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (telefono) { focusTo(telefono); moveCaretToEnd(telefono); }
+      }
+    });
+  }
+}
+
+// =========================================================================
+/** INIT */
 // =========================================================================
 document.addEventListener('DOMContentLoaded', () => {
   // Cámara + Galería
@@ -374,7 +428,7 @@ document.addEventListener('DOMContentLoaded', () => {
     tel.addEventListener('input', ()=>{ tel.value = tel.value.replace(/[^0-9 +()-]/g,''); });
   }
 
-  // DNI → buscar nombre/teléfono
+  // DNI → buscar nombre/teléfono (usa TU firma con nodos)
   const dni=document.getElementById('dni'),
         nombre=document.getElementById('nombre'),
         telefono=document.getElementById('telefono'),
@@ -386,7 +440,7 @@ document.addEventListener('DOMContentLoaded', () => {
     dni.addEventListener('input', ()=>{ dni.value = dni.value.replace(/\D/g,''); });
   }
 
-  // Nº armazón → buscar detalle/precio
+  // Nº armazón → buscar detalle/precio (usa TU firma con nodos)
   const nAr=document.getElementById('numero_armazon'),
         detAr=document.getElementById('armazon_detalle'),
         prAr=document.getElementById('precio_armazon');
@@ -464,6 +518,10 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   }
+
+  // ——— Mejoras pedidas: vendedor persistente + foco/orden de tab ———
+  setupVendedorPersistente();
+  setupTabYFoco();
 });
 
 // utilidades globales (si otras partes las usan)
