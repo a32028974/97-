@@ -1,24 +1,18 @@
-// /js/print.js — v2025-09-09 (A4 + QR fijo desde /img/qr.png)
-
+// /js/print.js — v2025-09-09 (RESTORE layout previo + QR fijo JPG)
 (function () {
-  // ===== Tamaños (A4) =====
+  // ===== Tamaños A4 como venías usando =====
   const PAGE_W_MM = 210;
   const PAGE_H_MM = 297;
-  const LEFT_W_MM = 145;
-  const GUTTER_MM = 5;
-  const RIGHT_W_MM = 55;
-  const MAX_COL_H_MM = 130;
+  const LEFT_W_MM = 145;   // panel principal
+  const GUTTER_MM = 5;     // línea de corte
+  const RIGHT_W_MM = 55;   // talón
   const BAR_W_MM = 55;
   const BAR_H_MM = 8;
 
   const UA = navigator.userAgent || '';
   const IS_MOBILE = /Android|iPhone|iPad|iPod/i.test(UA);
 
-  const NUDGE_TOP_MM  = 0;
-  const NUDGE_LEFT_MM = 0;
-  const EXTRA_W_MM = Math.max(0, -NUDGE_LEFT_MM);
-  const EXTRA_H_MM = Math.max(0, -NUDGE_TOP_MM);
-
+  // ===== Helpers =====
   const $ = (id) => document.getElementById(id);
   const getSelText = (el) => {
     if (!el) return '';
@@ -28,17 +22,11 @@
     }
     return (el.value || '').trim();
   };
-
-  function normNumberLike(v) {
-    if (v == null) return 0;
-    const s = String(v).replace(/[^\d.,-]/g, '').replace(/\./g, '').replace(',', '.');
-    const n = parseFloat(s);
-    return isNaN(n) ? 0 : n;
-  }
-  function money(v) {
-    const n = Math.max(0, normNumberLike(v));
-    return '$ ' + n.toLocaleString('es-AR', { maximumFractionDigits: 0 });
-  }
+  const money = (v) => {
+    const n = parseFloat(String(v ?? '').replace(/[^\d.,-]/g, '').replace(/\./g, '').replace(',', '.'));
+    const nn = isNaN(n) ? 0 : Math.max(0, n);
+    return '$ ' + nn.toLocaleString('es-AR', { maximumFractionDigits: 0 });
+  };
   function parseDateLike(v) {
     if (!v) return null;
     const s = String(v).trim();
@@ -60,18 +48,17 @@
     return `${dd}/${mm}/${yy}`;
   }
 
-  // ===== Recolección de datos del form =====
+  // ===== Datos del form =====
   function collectForm() {
+    const numero = getSelText($('numero_trabajo'));
     const retiraD = (() => {
       const d = parseDateLike(getSelText($('fecha_retira')));
       return d ? ddmmyyyy(d) : getSelText($('fecha_retira'));
     })();
 
-    const numero = getSelText($('numero_trabajo'));
-
     return {
       numero,
-      fecha:  getSelText($('fecha')),
+      fecha: getSelText($('fecha')),
       entrega: getSelText($('entrega-select')),
       retira: retiraD,
       dni: getSelText($('dni')),
@@ -100,17 +87,17 @@
       sena: money(getSelText($('sena'))),
       saldo: money(getSelText($('saldo'))),
       vendedor: getSelText($('vendedor')),
-      forma_pago: getSelText($('forma_pago'))
+      forma_pago: getSelText($('forma_pago')),
     };
   }
 
-  // ===== Render principal (boleta + talón) =====
+  // ===== HTML (igual al layout previo) =====
   function renderTicket(d) {
-    const safe = (x) => (x || '').replace(/[<>]/g, s => ({'<':'&lt;','>':'&gt;'}[s]));
+    const safe = (x) => (x || '').replace(/[<>]/g, s => ({ '<': '&lt;', '>': '&gt;' }[s]));
     const BRAND = '#110747';
 
     return `
-<div class="sheet" style="transform:translate(${NUDGE_LEFT_MM}mm, ${NUDGE_TOP_MM}mm)">
+<div class="sheet">
   <div class="canvas">
     <div class="left">
       <div class="hdr">
@@ -137,7 +124,41 @@
         <div class="kv" style="grid-column:1/-1"><div class="k">Teléfono</div><div class="v">${safe(d.tel)}</div></div>
       </div>
 
-      <!-- resto igual que antes… -->
+      <div class="grades">
+        <div class="box">
+          <div class="box-t">Graduación</div>
+          <table class="tbl">
+            <thead><tr><th></th><th>ESF</th><th>CIL</th><th>EJE</th></tr></thead>
+            <tbody>
+              <tr><td>OD</td><td>${safe(d.od_esf)}</td><td>${safe(d.od_cil)}</td><td>${safe(d.od_eje)}</td></tr>
+              <tr><td>OI</td><td>${safe(d.oi_esf)}</td><td>${safe(d.oi_cil)}</td><td>${safe(d.oi_eje)}</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="box">
+          <div class="box-t">Datos ópticos</div>
+          <div class="kv"><div class="k">Distancia</div><div class="v">${safe(d.distancia)}</div></div>
+          <div class="kv"><div class="k">DNP</div><div class="v">${safe(d.dnp)}</div></div>
+          <div class="kv"><div class="k">ADD</div><div class="v">${safe(d.add)}</div></div>
+          <div class="kv"><div class="k">Dr.</div><div class="v">${safe(d.dr)}</div></div>
+        </div>
+      </div>
+
+      <div class="box">
+        <div class="box-t">Productos</div>
+        <div class="kv"><div class="k">Cristal</div><div class="v">${safe(d.cristal)} — <strong>${d.precio_cristal}</strong></div></div>
+        <div class="kv"><div class="k">Obra soc.</div><div class="v">${safe(d.obra_social)} — ${d.desc_obra}</div></div>
+        <div class="kv"><div class="k">Armazón</div><div class="v">#${safe(d.n_armazon)} • ${safe(d.det_armazon)} — <strong>${d.precio_armazon}</strong></div></div>
+        <div class="kv"><div class="k">Otro</div><div class="v">${safe(d.otro_concepto)} — ${d.precio_otro}</div></div>
+      </div>
+
+      <div class="totals">
+        <div class="kv"><div class="k">Vendedor</div><div class="v vendedor">${safe(d.vendedor)}</div></div>
+        <div class="kv"><div class="k">Forma pago</div><div class="v">${safe(d.forma_pago)}</div></div>
+        <div class="total-line"><div>Total</div><div class="big">${d.total}</div></div>
+        <div class="kv"><div class="k">Seña</div><div class="v">${d.sena}</div></div>
+        <div class="kv"><div class="k">Saldo</div><div class="v">${d.saldo}</div></div>
+      </div>
     </div>
 
     <div class="cut"></div>
@@ -155,30 +176,66 @@
       <div class="r-kv"><div class="rk">Retira</div><div class="rv">${safe(d.retira)}</div></div>
       <div class="r-kv"><div class="rk">Saldo</div><div class="rv">${d.saldo}</div></div>
 
+      <!-- QR FIJO (JPG) -->
       <div class="r-qr">
-        <img src="img/qr.png" alt="QR fijo" style="width:34mm;height:34mm;object-fit:contain">
+        <img src="img/qr.png" alt="QR" style="width:34mm;height:34mm;object-fit:contain">
       </div>
     </div>
   </div>
 </div>`;
   }
 
-  // ===== CSS común =====
+  // ===== CSS inline (el mismo esquema que usabas) =====
   function commonCSS() {
+    const BRAND = '#110747';
     return `
     <style>
       @page { size: A4; margin: 0; }
       * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       html, body { margin:0; padding:0; background:#fff; color:#111; font: 9.5pt/1.3 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; }
       .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-      .sheet { width:${PAGE_W_MM+EXTRA_W_MM}mm; height:${PAGE_H_MM+EXTRA_H_MM}mm; }
+      .sheet { width:${PAGE_W_MM}mm; height:${PAGE_H_MM}mm; }
       .canvas { width:${PAGE_W_MM}mm; height:${PAGE_H_MM}mm; padding:8mm 6mm 6mm;
         display:grid; grid-template-columns:${LEFT_W_MM}mm ${GUTTER_MM}mm ${RIGHT_W_MM}mm; }
       .cut { width:${GUTTER_MM}mm; border-left:1px dashed #cfd6e4; }
-      .r-qr { margin-top:2mm; display:flex; justify-content:center; }
+      .hdr{ display:grid; grid-template-columns:1fr ${BAR_W_MM}mm 1fr; column-gap:3mm; align-items:start; margin-bottom:2mm; }
+      .brand{ display:flex; gap:2mm; }
+      .dot{ width:3mm; height:3mm; background:${BRAND}; border-radius:50%; margin-top:1mm; }
+      .title{ font-weight:800; color:${BRAND}; }
+      .sub{ color:#6b7280; font-size:8.5pt; margin-top:.2mm; }
+      .barwrap{ width:${BAR_W_MM}mm; height:${BAR_H_MM}mm; display:flex; align-items:center; justify-content:center; }
+      .barwrap svg{ width:${BAR_W_MM}mm; height:${BAR_H_MM}mm; }
+      .nro{ justify-self:end; text-align:right; }
+      .nro .lbl{ font-size:8pt; color:#6b7280; }
+      .nro .val{ font-weight:800; }
+
+      .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:1.8mm 3mm; }
+      .kv{ display:grid; grid-template-columns:22mm 1fr; column-gap:1.8mm; align-items:baseline; }
+      .kv .k{ color:#505a6b; font-size:8.5pt; } .kv .v{ font-weight:600; }
+
+      .grades{ display:grid; grid-template-columns:1fr 1fr; gap:2.2mm; margin:2mm 0; }
+      .box{ border:1px solid #d8dbe0; border-radius:1mm; overflow:hidden; }
+      .box-t{ background:#f2f4f7; padding:.8mm 1.6mm; font-weight:700; font-size:9pt; color:${BRAND}; }
+      .tbl{ width:100%; border-collapse:collapse; }
+      .tbl th,.tbl td{ border-top:1px solid #e5e7eb; padding:.8mm 1.2mm; text-align:center; font-size:9pt; }
+
+      .totals{ display:grid; grid-template-columns:1fr 1fr; gap:1mm 3mm; }
+      .total-line{ grid-column:1/-1; display:flex; justify-content:space-between; align-items:center; border-top:1px dashed #cfd6e4; padding-top:1.4mm; margin-top:.6mm; }
+      .total-line .big{ font-weight:800; }
+      .vendedor{ color:#505a6b; }
+
+      .right .r-head{ display:grid; grid-template-columns:7mm 1fr; column-gap:2mm; align-items:center; margin-bottom:1.2mm; }
+      .right .r-logo-dot{ width:7mm; height:7mm; background:${BRAND}; border-radius:50%; }
+      .right .r-title{ font-weight:800; color:${BRAND}; line-height:1.1; }
+      .right .r-sub{ color:#6b7280; font-size:8pt; line-height:1.1; margin-top:.2mm; }
+      .right .r-kv{ display:grid; grid-template-columns:16mm 1fr; gap:1.2mm; align-items:baseline; margin:.6mm 0; }
+      .right .rk{ color:#505a6b; font-size:8.5pt; } .right .rv{ font-weight:700; }
+      .right .r-qr{ margin-top:2mm; display:flex; justify-content:center; }
+      .right .r-qr img{ width:34mm; height:34mm; object-fit:contain; }
     </style>`;
   }
 
+  // ===== Print =====
   function printGeneric(htmlInner, numero) {
     const css = commonCSS();
     const win = IS_MOBILE ? window.open('', '_blank') : (() => {
@@ -214,10 +271,10 @@
     }
   }
 
-  // API pública
+  // ===== API pública =====
   window.__buildPrintArea = function () {
-    const data = collectForm();
-    const html = renderTicket(data);
-    printGeneric(html, data.numero);
+    const d = collectForm();
+    const html = renderTicket(d);
+    printGeneric(html, d.numero);
   };
 })();
