@@ -205,6 +205,22 @@ export async function guardarTrabajo({ progress } = {}) {
     body.set("detalle_armazon", detAr);
     body.set("ARMAZON", detAr);
 
+    // Aliases para Distancia/Obra Social — compat con nombres de columnas (W, X, Y)
+    const distFocal = (fd.get("distancia_focal") || "").toString().trim();
+    const obraSoc   = (fd.get("obra_social") || "").toString().trim();
+    const precioOS  = (fd.get("importe_obra_social") || "").toString().trim();
+    
+    // ids “normales” del form (por si tu GAS los usa)
+    body.set("distancia_focal", distFocal);
+    body.set("obra_social", obraSoc);
+    body.set("importe_obra_social", precioOS);
+    
+    // encabezados EXACTOS de la hoja (mayúsculas con espacio)
+    body.set("DISTANCIA FOCAL", distFocal);       // Columna W
+    body.set("OBRA SOCIAL", obraSoc);             // Columna X
+    body.set("PRECIO OBRA SOCIAL", precioOS);     // Columna Y
+
+
     const postJson = await postForm(API_URL, body);
     setStep("Guardando en planilla", "done");
 
