@@ -1,7 +1,8 @@
-// /js/main.js — build limpio (sin historial/mini)
+// /js/main.js — v2025-09-09 (completo)
+// UI general + progreso + cámara + búsquedas + totales + graduaciones + impresión + guardado
 
 // ===== Imports =====
-import './print.js?v=2025-09-05h';
+import './print.js?v=2025-09-09c';
 import { sanitizePrice, parseMoney } from './utils.js';
 import { obtenerNumeroTrabajoDesdeTelefono } from './numeroTrabajo.js';
 import { cargarFechaHoy } from './fechaHoy.js';
@@ -106,7 +107,7 @@ function progressAPI(steps = PROGRESS_STEPS) {
 }
 
 // =========================================================================
-// Fechas
+— Fechas
 // =========================================================================
 function parseFechaDDMMYY(str){
   if(!str) return new Date();
@@ -229,7 +230,7 @@ function setupGraduacionesSelects() {
 }
 
 // =========================================================================
-// Reset graduaciones
+— Reset graduaciones
 // =========================================================================
 function resetGraduaciones() {
   ['od_esf','oi_esf','od_cil','oi_cil'].forEach(id => {
@@ -253,7 +254,7 @@ function resetGraduaciones() {
 }
 
 // =========================================================================
-// Dinero / Totales
+— Dinero / Totales
 // =========================================================================
 function setupCalculos(){
   const pc  = document.getElementById('precio_cristal');
@@ -289,7 +290,7 @@ function setupCalculos(){
 }
 
 // =========================================================================
-// Impresión / Limpieza
+— Impresión / Limpieza
 // =========================================================================
 let __PRINT_LOCK = false;
 function buildPrintArea(){
@@ -321,7 +322,7 @@ function limpiarFormulario(){
 }
 
 // =========================================================================
-// SOLO SE GUARDA CON CLICK: bloquear submit con Enter
+— SOLO SE GUARDA CON CLICK: bloquear submit con Enter
 // =========================================================================
 function bloquearSubmitConEnter(form){
   if (!form) return;
@@ -335,6 +336,30 @@ function bloquearSubmitConEnter(form){
     const esSubmitButton = (tag === 'BUTTON' && type === 'submit');
     if (!esTextArea && !enterPermitido && !esSubmitButton) {
       e.preventDefault();
+    }
+  });
+}
+
+// =========================================================================
+// FIXES de navegación con Tab (pedidos por Juan)
+// =========================================================================
+function fixTabDesdeCristal(){
+  const cristal = document.getElementById('cristal');
+  if (!cristal) return;
+
+  const goNext = () =>
+    document.getElementById('precio_cristal') ||
+    document.getElementById('obra_social') ||
+    document.getElementById('numero_armazon') ||
+    document.getElementById('nombre');
+
+  cristal.addEventListener('keydown', (e)=>{
+    if (e.key === 'Tab' && !e.shiftKey) {
+      const next = goNext();
+      if (next) {
+        e.preventDefault();
+        next.focus();
+      }
     }
   });
 }
@@ -374,20 +399,20 @@ document.addEventListener('DOMContentLoaded', () => {
     tel.addEventListener('input', ()=>{ tel.value = tel.value.replace(/[^0-9 +()-]/g,''); });
   }
 
- // DNI → buscar nombre/teléfono
-const dni=document.getElementById('dni'),
-      nombre=document.getElementById('nombre'),
-      telefono=document.getElementById('telefono'),
-      indi=document.getElementById('dni-loading');
-if(dni){
-  const doDNI = () => buscarNombrePorDNI(dni, nombre, telefono, indi);
-  dni.addEventListener('blur', doDNI);
-  dni.addEventListener('keydown', (e)=>{
-    if(e.key==='Enter'){ e.preventDefault(); doDNI(); }
-    if(e.key==='Tab'){ window.__dniGoNext = true; } // ← marca que venís tabulando
-  });
-  dni.addEventListener('input', ()=>{ dni.value = dni.value.replace(/\D/g,''); });
-}
+  // DNI → buscar nombre/teléfono (con modal bloqueante y avance al Nombre si venías con Tab)
+  const dni=document.getElementById('dni'),
+        nombre=document.getElementById('nombre'),
+        telefono=document.getElementById('telefono'),
+        indi=document.getElementById('dni-loading');
+  if(dni){
+    const doDNI = () => buscarNombrePorDNI(dni, nombre, telefono, indi);
+    dni.addEventListener('blur', doDNI);
+    dni.addEventListener('keydown', (e)=>{
+      if(e.key==='Enter'){ e.preventDefault(); doDNI(); }
+      if(e.key==='Tab'){ window.__dniGoNext = true; } // marca que venís tabulando
+    });
+    dni.addEventListener('input', ()=>{ dni.value = dni.value.replace(/\D/g,''); });
+  }
 
   // Nº armazón → buscar detalle/precio
   const nAr=document.getElementById('numero_armazon'),
@@ -409,12 +434,20 @@ if(dni){
     });
   }
 
-  // DNP 12/34
+  // DNP 12/34 enmascarado
   const dnp=document.getElementById('dnp');
   if(dnp){
     const fmt=(v)=> v.replace(/\D/g,'').slice(0,4).replace(/^(\d{0,2})(\d{0,2}).*$/,(_,a,b)=> b?`${a}/${b}`:a);
     dnp.addEventListener('input', ()=> dnp.value = fmt(dnp.value));
   }
+
+  // EJE: sanitizar y validar en blur
+  ['od_eje','oi_eje'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(!el) return;
+    el.addEventListener('input', ()=>sanitizeEje(el));
+    el.addEventListener('blur',  ()=>validateEje(el));
+  });
 
   // Botones
   const btnImp=document.getElementById('btn-imprimir'); 
@@ -427,6 +460,9 @@ if(dni){
 
   // Bloquear submit con Enter — solo click guarda
   bloquearSubmitConEnter(form);
+
+  // Fix de tabulación desde "Tipo de cristal"
+  fixTabDesdeCristal();
 
   if(form){
     form.addEventListener('submit', async (e)=>{
