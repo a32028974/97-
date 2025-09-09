@@ -3,8 +3,8 @@ import { API_URL, withParams, apiGet } from './api.js';
 
 /**
  * Completa nombre y teléfono a partir del DNI.
- * - Usa SweetAlert (modal bloqueante) mientras busca
- * - Si el usuario presionó Tab desde DNI, al terminar pone foco en #nombre (o #telefono si no existe)
+ * - Usa SweetAlert bloqueante
+ * - Si el usuario presionó Tab en DNI, al cerrar salta a #nombre (o #telefono)
  */
 export async function buscarNombrePorDNI(dniEl, nombreEl, telefonoEl, indicatorEl) {
   const dni = String(dniEl?.value || '').replace(/\D+/g, '');
@@ -14,7 +14,6 @@ export async function buscarNombrePorDNI(dniEl, nombreEl, telefonoEl, indicatorE
     return null;
   }
 
-  // Loader bloqueante (mantiene foco dentro, pero luego lo reasignamos)
   if (window.Swal) {
     Swal.fire({
       title: 'Buscando…',
@@ -24,7 +23,7 @@ export async function buscarNombrePorDNI(dniEl, nombreEl, telefonoEl, indicatorE
       showConfirmButton: false,
       didOpen: () => Swal.showLoading(),
       willClose: () => {
-        // al cerrar, si veníamos con Tab desde DNI, avanzamos al siguiente campo
+        // si venías tabulando desde DNI, avanzar
         if (window.__dniGoNext) {
           window.__dniGoNext = false;
           if (nombreEl) nombreEl.focus();
@@ -45,8 +44,7 @@ export async function buscarNombrePorDNI(dniEl, nombreEl, telefonoEl, indicatorE
     if (nombreEl)   nombreEl.value   = nombre;
     if (telefonoEl) {
       telefonoEl.value = telefono;
-      // disparamos change para que se regenere el número de trabajo si corresponde
-      telefonoEl.dispatchEvent(new Event('change', { bubbles: true }));
+      telefonoEl.dispatchEvent(new Event('change', { bubbles: true })); // regen nro trabajo
     }
 
     return data;
