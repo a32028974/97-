@@ -374,17 +374,20 @@ document.addEventListener('DOMContentLoaded', () => {
     tel.addEventListener('input', ()=>{ tel.value = tel.value.replace(/[^0-9 +()-]/g,''); });
   }
 
-  // DNI → buscar nombre/teléfono
-  const dni=document.getElementById('dni'),
-        nombre=document.getElementById('nombre'),
-        telefono=document.getElementById('telefono'),
-        indi=document.getElementById('dni-loading');
-  if(dni){
-    const doDNI = () => buscarNombrePorDNI(dni, nombre, telefono, indi);
-    dni.addEventListener('blur', doDNI);
-    dni.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); doDNI(); } });
-    dni.addEventListener('input', ()=>{ dni.value = dni.value.replace(/\D/g,''); });
-  }
+ // DNI → buscar nombre/teléfono
+const dni=document.getElementById('dni'),
+      nombre=document.getElementById('nombre'),
+      telefono=document.getElementById('telefono'),
+      indi=document.getElementById('dni-loading');
+if(dni){
+  const doDNI = () => buscarNombrePorDNI(dni, nombre, telefono, indi);
+  dni.addEventListener('blur', doDNI);
+  dni.addEventListener('keydown', (e)=>{
+    if(e.key==='Enter'){ e.preventDefault(); doDNI(); }
+    if(e.key==='Tab'){ window.__dniGoNext = true; } // ← marca que venís tabulando
+  });
+  dni.addEventListener('input', ()=>{ dni.value = dni.value.replace(/\D/g,''); });
+}
 
   // Nº armazón → buscar detalle/precio
   const nAr=document.getElementById('numero_armazon'),
