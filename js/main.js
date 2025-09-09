@@ -1,5 +1,5 @@
-// /js/main.js — v2025-09-09 (completo)
-// UI general + progreso + cámara + búsquedas + totales + graduaciones + impresión + guardado
+// /js/main.js — v2025-09-09 (limpio)
+// UI + progreso + cámara + búsquedas + totales + graduaciones + impresión + guardado
 
 // ===== Imports =====
 import './print.js?v=2025-09-09c';
@@ -107,7 +107,7 @@ function progressAPI(steps = PROGRESS_STEPS) {
 }
 
 // =========================================================================
-— Fechas
+// Fechas
 // =========================================================================
 function parseFechaDDMMYY(str){
   if(!str) return new Date();
@@ -230,7 +230,7 @@ function setupGraduacionesSelects() {
 }
 
 // =========================================================================
-— Reset graduaciones
+// Reset graduaciones
 // =========================================================================
 function resetGraduaciones() {
   ['od_esf','oi_esf','od_cil','oi_cil'].forEach(id => {
@@ -254,7 +254,7 @@ function resetGraduaciones() {
 }
 
 // =========================================================================
-— Dinero / Totales
+// Dinero / Totales
 // =========================================================================
 function setupCalculos(){
   const pc  = document.getElementById('precio_cristal');
@@ -290,7 +290,7 @@ function setupCalculos(){
 }
 
 // =========================================================================
-— Impresión / Limpieza
+// Impresión / Limpieza
 // =========================================================================
 let __PRINT_LOCK = false;
 function buildPrintArea(){
@@ -298,7 +298,7 @@ function buildPrintArea(){
   __PRINT_LOCK = true;
   try {
     if (typeof window.__buildPrintArea === 'function') {
-      window.__buildPrintArea();   // print.js -> arma y print
+      window.__buildPrintArea();
     } else {
       console.warn('No existe __buildPrintArea');
     }
@@ -322,7 +322,7 @@ function limpiarFormulario(){
 }
 
 // =========================================================================
-— SOLO SE GUARDA CON CLICK: bloquear submit con Enter
+ // SOLO SE GUARDA CON CLICK: bloquear submit con Enter
 // =========================================================================
 function bloquearSubmitConEnter(form){
   if (!form) return;
@@ -341,7 +341,7 @@ function bloquearSubmitConEnter(form){
 }
 
 // =========================================================================
-// FIXES de navegación con Tab (pedidos por Juan)
+// FIXES de navegación con Tab
 // =========================================================================
 function fixTabDesdeCristal(){
   const cristal = document.getElementById('cristal');
@@ -382,7 +382,6 @@ document.addEventListener('DOMContentLoaded', () => {
     fechaEnc.addEventListener('change', recalcularFechaRetiro);
     fechaEnc.addEventListener('blur',   recalcularFechaRetiro);
   }
-  // primer cálculo
   recalcularFechaRetiro();
 
   // Graduaciones
@@ -399,7 +398,7 @@ document.addEventListener('DOMContentLoaded', () => {
     tel.addEventListener('input', ()=>{ tel.value = tel.value.replace(/[^0-9 +()-]/g,''); });
   }
 
-  // DNI → buscar nombre/teléfono (con modal bloqueante y avance al Nombre si venías con Tab)
+  // DNI → buscar nombre/teléfono (modal bloqueante + avance al Nombre si venías con Tab)
   const dni=document.getElementById('dni'),
         nombre=document.getElementById('nombre'),
         telefono=document.getElementById('telefono'),
@@ -409,7 +408,7 @@ document.addEventListener('DOMContentLoaded', () => {
     dni.addEventListener('blur', doDNI);
     dni.addEventListener('keydown', (e)=>{
       if(e.key==='Enter'){ e.preventDefault(); doDNI(); }
-      if(e.key==='Tab'){ window.__dniGoNext = true; } // marca que venís tabulando
+      if(e.key==='Tab'){ window.__dniGoNext = true; } // marcamos que venís tabulando
     });
     dni.addEventListener('input', ()=>{ dni.value = dni.value.replace(/\D/g,''); });
   }
@@ -434,7 +433,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // DNP 12/34 enmascarado
+  // DNP 12/34
   const dnp=document.getElementById('dnp');
   if(dnp){
     const fmt=(v)=> v.replace(/\D/g,'').slice(0,4).replace(/^(\d{0,2})(\d{0,2}).*$/,(_,a,b)=> b?`${a}/${b}`:a);
@@ -457,8 +456,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Guardar
   const form=document.getElementById('formulario');
-
-  // Bloquear submit con Enter — solo click guarda
   bloquearSubmitConEnter(form);
 
   // Fix de tabulación desde "Tipo de cristal"
@@ -505,6 +502,6 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-// utilidades globales (si otras partes las usan)
+// utilidades globales
 window.generarNumeroTrabajoDesdeTelefono = generarNumeroTrabajoDesdeTelefono;
 window.recalcularFechaRetiro = recalcularFechaRetiro;
