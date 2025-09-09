@@ -11,6 +11,7 @@
 
   const UA = navigator.userAgent || '';
   const IS_MOBILE = /Android|iPhone|iPad|iPod/i.test(UA);
+  const QR_SRC = new URL('img/qr.png', window.location.href).href;
 
   // ===== Helpers =====
   const $ = (id) => document.getElementById(id);
@@ -178,7 +179,7 @@
 
       <!-- QR FIJO (JPG) -->
       <div class="r-qr">
-        <img src="img/qr.png" alt="QR" style="width:34mm;height:34mm;object-fit:contain">
+        <img src="${QR_SRC}?v=2" alt="QR" style="width:34mm;height:34mm;object-fit:contain">
       </div>
     </div>
   </div>
