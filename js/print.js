@@ -166,14 +166,15 @@
 
     <div class="cut"></div>
 
-    <div class="right">
-      <div class="r-head">
-  <img class="r-logo-img" src="${LOGO_SRC}?v=1" alt="Óptica Cristal">
-  <div class="r-text">
-    <div class="r-line">Av. Ricardo Balbín 1125 - San Miguel</div>
-    <div class="r-line">Cel/Whatsapp 11 5668 9919</div>
+   <div class="right">
+  <div class="r-head">
+    <img class="r-logo-img" src="${LOGO_SRC}?v=1" alt="Óptica Cristal">
+    <div class="r-text">
+      <div class="r-line">Av. Ricardo Balbín 1125</div>
+      <div class="r-line">San Miguel</div>
+      <div class="r-line">Cel/Whatsapp 11 5668 9919</div>
+    </div>
   </div>
-</div>
 
       <div class="r-kv"><div class="rk">Nº</div><div class="rv mono">${safe(d.numero)}</div></div>
 <div class="r-kv"><div class="rk">Cliente</div><div class="rv">${safe(d.nombre)}</div></div>
