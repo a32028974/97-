@@ -199,7 +199,7 @@
     <style>
       @page { size: A4; margin: 0; }
       * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-      html, body { margin:0; padding:0; background:#fff; color:#111; font: 9.5pt/1.3 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; }
+      html, body { margin:0; padding:0; background:#fff; color:#111; font: 12pt/1.3 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; }
       .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
       .sheet { width:${PAGE_W_MM}mm; height:${PAGE_H_MM}mm; }
       .canvas { width:${PAGE_W_MM}mm; height:${PAGE_H_MM}mm; padding:8mm 6mm 6mm;
