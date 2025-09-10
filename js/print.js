@@ -250,18 +250,34 @@
 
     const doc = win.document;
     doc.open();
-    doc.write(`<!doctype html><html><head><meta charset="utf-8">${css}</head><body>${htmlInner}</body></html>`);
+    doc.write(`<!doctype html><html><head><meta charset="utf-8"><link rel="preload" as="image" href="${QR_SRC}?v=2">${css}</head><body>${htmlInner}</body></html>`);
+
     doc.close();
 
-    const render = () => {
-      try {
-        const svg = doc.getElementById('barcode');
-        if (win.JsBarcode && svg) {
-          win.JsBarcode(svg, String(numero || ''), { format: 'CODE128', displayValue: false, margin: 0, height: 40 });
-        }
-      } catch (_) {}
-      setTimeout(() => { try { win.focus(); win.print(); } catch {} }, 80);
-    };
+   const render = async () => {
+  try {
+    const svg = doc.getElementById('barcode');
+    if (win.JsBarcode && svg) {
+      win.JsBarcode(svg, String(numero || ''), { format:'CODE128', displayValue:false, margin:0, height:40 });
+    }
+  } catch (_) {}
+
+  // esperar a que carguen todas las imágenes (incluye el QR PNG)
+  const imgs = Array.from(doc.images || []);
+  await Promise.all(imgs.map(img => img.complete
+    ? Promise.resolve()
+    : new Promise(res => {
+        img.addEventListener('load',  res, { once:true });
+        img.addEventListener('error', res, { once:true });
+      })
+  ));
+
+  // darle un par de frames al layout y recién ahí imprimir
+  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+  try { win.focus(); win.print(); } catch {}
+};
+
+
 
     if (win.JsBarcode) render();
     else {
