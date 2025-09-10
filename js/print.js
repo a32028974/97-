@@ -12,6 +12,8 @@
   const UA = navigator.userAgent || '';
   const IS_MOBILE = /Android|iPhone|iPad|iPod/i.test(UA);
   const QR_SRC = new URL('img/qr.png', window.location.href).href;
+  const LOGO_SRC = new URL('img/logo.png', window.location.href).href;
+
 
   // ===== Helpers =====
   const $ = (id) => document.getElementById(id);
@@ -166,16 +168,19 @@
 
     <div class="right">
       <div class="r-head">
-        <div class="r-logo-dot"></div>
-        <div>
-          <div class="r-title">Óptica Cristal</div>
-          <div class="r-sub">Comprobante de retiro</div>
-        </div>
-      </div>
+  <img class="r-logo-img" src="${LOGO_SRC}?v=1" alt="Óptica Cristal">
+  <div class="r-text">
+    <div class="r-line">Av. Ricardo Balbín 1125 - San Miguel</div>
+    <div class="r-line">Cel/Whatsapp 11 5668 9919</div>
+  </div>
+</div>
+
       <div class="r-kv"><div class="rk">Nº</div><div class="rv mono">${safe(d.numero)}</div></div>
-      <div class="r-kv"><div class="rk">Cliente</div><div class="rv">${safe(d.nombre)}</div></div>
-      <div class="r-kv"><div class="rk">Retira</div><div class="rv">${safe(d.retira)}</div></div>
-      <div class="r-kv"><div class="rk">Saldo</div><div class="rv">${d.saldo}</div></div>
+<div class="r-kv"><div class="rk">Cliente</div><div class="rv">${safe(d.nombre)}</div></div>
+<div class="r-kv"><div class="rk">Retira (aprox.)</div><div class="rv">${safe(d.retira)}</div></div>
+<div class="r-kv"><div class="rk">Total</div><div class="rv">${d.total}</div></div>
+<div class="r-kv"><div class="rk">Seña</div><div class="rv">${d.sena}</div></div>
+<div class="r-kv"><div class="rk">Saldo</div><div class="rv">${d.saldo}</div></div>
 
       <!-- QR FIJO (JPG) -->
       <div class="r-qr">
@@ -225,7 +230,9 @@
       .total-line .big{ font-weight:800; }
       .vendedor{ color:#505a6b; }
 
-      .right .r-head{ display:grid; grid-template-columns:7mm 1fr; column-gap:2mm; align-items:center; margin-bottom:1.2mm; }
+      .right .r-head{ display:grid; grid-template-columns:14mm 1fr; column-gap:2mm; align-items:center; margin-bottom:1.2mm; }
+      .r-logo-img{ width:14mm; height:14mm; object-fit:contain; }
+      .r-line{ font-size:8.5pt; color:#505a6b; line-height:1.2; }
       .right .r-logo-dot{ width:7mm; height:7mm; background:${BRAND}; border-radius:50%; }
       .right .r-title{ font-weight:800; color:${BRAND}; line-height:1.1; }
       .right .r-sub{ color:#6b7280; font-size:8pt; line-height:1.1; margin-top:.2mm; }
@@ -250,7 +257,8 @@
 
     const doc = win.document;
     doc.open();
-    doc.write(`<!doctype html><html><head><meta charset="utf-8"><link rel="preload" as="image" href="${QR_SRC}?v=2">${css}</head><body>${htmlInner}</body></html>`);
+    doc.write(`<!doctype html><html><head><meta charset="utf-8"><link rel="preload" as="image" href="${QR_SRC}?v=2"><link rel="preload" as="image" href="${LOGO_SRC}?v=1">${css}</head><body>${htmlInner}</body></html>`);
+
 
     doc.close();
 
