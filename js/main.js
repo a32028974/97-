@@ -366,41 +366,105 @@ function fixTabDesdeCristal(){
   });
 }
 // =========================================================================
-// Cargar trabajo anterior por N° (edición)
+// Cargar trabajo anterior por N° (edición) — robusto con varios fallback
 // =========================================================================
-async function cargarTrabajoAnterior(nro) {
-  const url = withParams(API_URL, { histBuscar: `@${nro}`, limit: 1 });
-  const data = await apiGet(url);
+function __getNroFromRow(r = {}) {
+  const cand = [
+    r.numero, r.nro, r.n_trabajo, r.NRO,
+    r['NUMERO TRABAJO'], r['NÚMERO TRABAJO'],
+    r['Numero trabajo'], r['Numero_Trabajo'], r['NUMERO']
+  ];
+  return String(cand.find(x => x != null) ?? '').replace(/\s+/g,'');
+}
 
-  if (!data || !data.length) {
+async function __fetchHistByNro(nro) {
+  const tries = [
+    { histBuscar: `@${nro}`, limit: 50 },  // exacto (si el backend lo soporta)
+    { histBuscar: `${nro}`,  limit: 50 },  // contiene
+    { histNro: nro,          limit: 50 },  // otros nombres comunes
+    { nro: nro,              limit: 50 },
+    { buscar: nro,           limit: 50 },
+  ];
+
+  for (const params of tries) {
+    try {
+      const url = withParams(API_URL, params);
+      const data = await apiGet(url);
+      if (Array.isArray(data) && data.length) {
+        // Si vino más de uno, elijo el que matchee exactamente el N°
+        const exact = data.find(r => __getNroFromRow(r) === String(nro));
+        return exact ? [exact] : data;
+      }
+    } catch (e) {
+      // sigo probando el próximo modo
+      console.debug('hist fallback err:', e?.message);
+    }
+  }
+  return [];
+}
+
+async function cargarTrabajoAnterior(nro) {
+  const data = await __fetchHistByNro(nro);
+
+  if (!data.length) {
     if (window.Swal) Swal.fire('No encontrado', `No hay trabajo con N° ${nro}`, 'warning');
     return;
   }
 
   const t = data[0];
 
-  for (const [k, v] of Object.entries(t)) {
-    const el = document.getElementById(k);
-    if (!el) continue;
+  const map = {
+    // mapeos útiles por si las claves no coinciden 1:1 con los ids
+    numero: 'numero_trabajo', num: 'numero_trabajo', nro: 'numero_trabajo',
+    n_trabajo: 'numero_trabajo', NRO: 'numero_trabajo',
+    'NUMERO TRABAJO': 'numero_trabajo', 'NÚMERO TRABAJO': 'numero_trabajo',
 
+    n_armazon: 'numero_armazon', num_armazon: 'numero_armazon',
+    nro_armazon: 'numero_armazon', armazon_numero: 'numero_armazon',
+    'NUMERO ARMAZON': 'numero_armazon',
+
+    armazon: 'armazon_detalle', detalle_armazon: 'armazon_detalle',
+    ARMAZON: 'armazon_detalle',
+
+    precio_armazon: 'precio_armazon',
+    precio_otro: 'precio_otro',
+    importe_obra_social: 'importe_obra_social',
+    precio_cristal: 'precio_cristal',
+
+    entrega: 'entrega-select',
+    fecha_retira: 'fecha_retira',
+    nombre_cliente: 'nombre', tel: 'telefono', telefono_cliente: 'telefono',
+  };
+
+  const setVal = (id, val) => {
+    const el = document.getElementById(id);
+    if (!el) return;
     if (el.tagName === 'SELECT') {
-      const val = String(v ?? '');
-      const opt = [...el.options].find(o => o.value === val || o.textContent?.trim() === val);
+      const v = String(val ?? '');
+      const opt = [...el.options].find(o => o.value === v || o.textContent?.trim() === v);
       if (opt) el.value = opt.value;
     } else {
-      el.value = String(v ?? '');
+      el.value = String(val ?? '');
     }
-
     el.dispatchEvent(new Event('input',  { bubbles:true }));
     el.dispatchEvent(new Event('change', { bubbles:true }));
     el.dispatchEvent(new Event('blur',   { bubbles:true }));
+  };
+
+  // seteo Nº primero por si viene con otro nombre
+  const nroExact = __getNroFromRow(t);
+  if (nroExact) setVal('numero_trabajo', nroExact);
+
+  // resto de campos
+  for (const [k, v] of Object.entries(t)) {
+    setVal(map[k] || k, v);
   }
 
   if (typeof window.__updateTotals === 'function') window.__updateTotals();
+  if (typeof window.recalcularFechaRetiro === 'function') window.recalcularFechaRetiro();
   if (window.Swal) Swal.fire('Listo', 'Trabajo cargado para edición', 'success');
 }
 
-// Fallback: también la cuelgo en window por si algún handler la busca ahí
 window.cargarTrabajoAnterior = cargarTrabajoAnterior;
 
 // =========================================================================
