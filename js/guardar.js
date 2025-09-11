@@ -1,4 +1,4 @@
-// /js/guardar.js — v2025-09-05 (N° único con sufijos -1, -2… + PDF/Telegram)
+// /js/guardar.js — v2025-09-11 (fix: no volcar detalle en "Nº armazón")
 // Requiere: api.js (API_URL, PACK_URL, withParams, apiGet) y que print.js defina window.__buildPrintArea()
 
 import { API_URL, PACK_URL, withParams, apiGet } from "./api.js";
@@ -189,10 +189,11 @@ export async function guardarTrabajo({ progress } = {}) {
     body.set("numero_trabajo", nroFinalCliente);
     body.set("numero", nroFinalCliente); // alias común en GAS
 
-    // Aliases para armazón (número/detalle) — compat con tu GAS
+    // ===== Armazón: número y detalle (FIX) =====
     const numAr = (fd.get("numero_armazon") || "").toString().trim();
     const detAr = (fd.get("armazon_detalle") || "").toString().trim();
 
+    // Campos del NÚMERO (todas las variantes que puede entender tu GAS)
     body.set("numero_armazon", numAr);
     body.set("n_armazon", numAr);
     body.set("num_armazon", numAr);
@@ -200,26 +201,31 @@ export async function guardarTrabajo({ progress } = {}) {
     body.set("armazon_numero", numAr);
     body.set("NUMERO ARMAZON", numAr);
 
-    body.set("armazon", detAr);
+    // Compat GAS antiguo: 'armazon' lo trata como NÚMERO (fallback)
+    // → nunca mandamos el detalle acá; si no hay número, lo dejamos vacío.
+    body.set("armazon", numAr || "");
+
+    // Campos del DETALLE
     body.set("armazon_detalle", detAr);
     body.set("detalle_armazon", detAr);
+    body.set("DETALLE ARMAZON", detAr);
     body.set("ARMAZON", detAr);
 
-    // Aliases para Distancia/Obra Social — compat con nombres de columnas (W, X, Y)
+    // ===== Alias para Distancia / Obra Social =====
     const distFocal = (fd.get("distancia_focal") || "").toString().trim();
     const obraSoc   = (fd.get("obra_social") || "").toString().trim();
     const precioOS  = (fd.get("importe_obra_social") || "").toString().trim();
-    
-    // ids “normales” del form (por si tu GAS los usa)
+
+    // ids “normales” del form
     body.set("distancia_focal", distFocal);
     body.set("obra_social", obraSoc);
     body.set("importe_obra_social", precioOS);
-    
-    // encabezados EXACTOS de la hoja (mayúsculas con espacio)
-    body.set("DISTANCIA FOCAL", distFocal);       // Columna W
-    body.set("OBRA SOCIAL", obraSoc);             // Columna X
-    body.set("PRECIO OBRA SOCIAL", precioOS);     // Columna Y
 
+    // encabezados que suele usar la planilla
+    body.set("DISTANCIA FOCAL", distFocal);
+    body.set("OBRA SOCIAL", obraSoc);
+    body.set("PRECIO OBRA SOCIAL", precioOS);
+    body.set("- DESCUENTA OBRA SOCIAL", precioOS);
 
     const postJson = await postForm(API_URL, body);
     setStep("Guardando en planilla", "done");
@@ -282,7 +288,6 @@ export async function guardarTrabajo({ progress } = {}) {
     }
 
     if (imprimir) {
-      // Tu print.js arma el ticket leyendo del formulario
       if (typeof window.__buildPrintArea === 'function') {
         window.__buildPrintArea();
       }
