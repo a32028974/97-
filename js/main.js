@@ -365,6 +365,43 @@ function fixTabDesdeCristal(){
     }
   });
 }
+// =========================================================================
+// Cargar trabajo anterior por N° (edición)
+// =========================================================================
+async function cargarTrabajoAnterior(nro) {
+  const url = withParams(API_URL, { histBuscar: `@${nro}`, limit: 1 });
+  const data = await apiGet(url);
+
+  if (!data || !data.length) {
+    if (window.Swal) Swal.fire('No encontrado', `No hay trabajo con N° ${nro}`, 'warning');
+    return;
+  }
+
+  const t = data[0];
+
+  for (const [k, v] of Object.entries(t)) {
+    const el = document.getElementById(k);
+    if (!el) continue;
+
+    if (el.tagName === 'SELECT') {
+      const val = String(v ?? '');
+      const opt = [...el.options].find(o => o.value === val || o.textContent?.trim() === val);
+      if (opt) el.value = opt.value;
+    } else {
+      el.value = String(v ?? '');
+    }
+
+    el.dispatchEvent(new Event('input',  { bubbles:true }));
+    el.dispatchEvent(new Event('change', { bubbles:true }));
+    el.dispatchEvent(new Event('blur',   { bubbles:true }));
+  }
+
+  if (typeof window.__updateTotals === 'function') window.__updateTotals();
+  if (window.Swal) Swal.fire('Listo', 'Trabajo cargado para edición', 'success');
+}
+
+// Fallback: también la cuelgo en window por si algún handler la busca ahí
+window.cargarTrabajoAnterior = cargarTrabajoAnterior;
 
 // =========================================================================
 // INIT
