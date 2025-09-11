@@ -364,9 +364,8 @@ function fixTabDesdeCristal(){
       }
     }
   });
-}
-// =========================================================================
-// Cargar trabajo anterior por N° (edición) — normaliza fechas, grads y armazón
+}// =========================================================================
+// Cargar trabajo anterior por N° (edición) — robusto + normaliza datos
 // =========================================================================
 function __toDateObj(v){
   if (v instanceof Date) return v;
@@ -380,7 +379,7 @@ function __toDateObj(v){
     const d=new Date(yy, mm-1, dd);
     return isNaN(d) ? null : d;
   }
-  const d = new Date(s);                                       // “Wed Sep 10 2025 …”
+  const d = new Date(s);
   return isNaN(d) ? null : d;
 }
 function __fmtDDMMYY(d){
@@ -415,7 +414,8 @@ function __setVal(id, val, {trigger=true} = {}){
   const el = document.getElementById(id);
   if (!el) return;
   if (el.tagName === 'SELECT') {
-    const opt = [...el.options].find(o => o.value == val || o.textContent?.trim() == val);
+    const v = String(val ?? '');
+    const opt = [...el.options].find(o => o.value == v || o.textContent?.trim() == v || o.textContent?.includes(v));
     if (opt) el.value = opt.value;
   } else {
     el.value = String(val ?? '');
@@ -428,15 +428,58 @@ function __setVal(id, val, {trigger=true} = {}){
 }
 function __isArmazonCodeLike(s){
   const v = String(s||'').trim().toUpperCase();
-  // acepto códigos alfanuméricos y guiones hasta 12–14 caracteres (RB1234, 13-336, etc.)
   return /^[A-Z0-9\-]{1,14}$/.test(v);
+}
+function __getNroFromRow(r = {}) {
+  const cand = [
+    r.numero_trabajo, r.numero, r.num, r.nro, r.n_trabajo, r.NRO, r.N,
+    r['NUMERO TRABAJO'], r['NÚMERO TRABAJO'], r['Numero trabajo']
+  ];
+  return String(cand.find(x => x != null) ?? '').trim();
+}
+
+// Busca historial con varios parámetros y hoja opcional
+async function __fetchHistByNro(nro) {
+  const searchParamSets = [
+    { histBuscar: `@${nro}`, limit: 200 },
+    { histBuscar: `${nro}`,  limit: 200 },
+    { buscar: nro,           limit: 200 },
+    { numero: nro,           limit: 200 },
+    { nro: nro,              limit: 200 },
+    { histNro: nro,          limit: 200 },
+  ];
+  const sheetHints = [
+    {}, // sin hoja
+    { sheet: 'TRABAJOS WEB' },
+    { hoja:  'TRABAJOS WEB' },
+    { tab:   'TRABAJOS WEB' },
+    { ws:    'TRABAJOS WEB' },
+  ];
+
+  for (const base of searchParamSets) {
+    for (const sh of sheetHints) {
+      try {
+        const params = { ...base, ...sh };
+        const url = withParams(API_URL, params);
+        const data = await apiGet(url);
+        if (Array.isArray(data) && data.length) {
+          // filtro exacto si puedo
+          const exact = data.find(r => __getNroFromRow(r) === String(nro));
+          return exact ? [exact] : data;
+        }
+      } catch (e) {
+        // seguimos probando
+        // console.debug('fallback', base, sh, e?.message);
+      }
+    }
+  }
+  return [];
 }
 
 async function cargarTrabajoAnterior(nro) {
-  const url  = withParams(API_URL, { histBuscar: `@${nro}`, limit: 1 });
-  const data = await apiGet(url);
+  const data = await __fetchHistByNro(nro);
 
-  if (!data || !data.length) {
+  if (!data.length) {
     if (window.Swal) Swal.fire('No encontrado', `No hay trabajo con N° ${nro}`, 'warning');
     return;
   }
@@ -444,12 +487,10 @@ async function cargarTrabajoAnterior(nro) {
   const t = data[0] || {};
 
   // ====== FECHAS ======
-  // FECHA → input texto (dd/mm/aa)
   const fechaCruda = t.fecha ?? t.FECHA ?? t['Fecha'] ?? t['FECHA QUE ENCARGA'];
   const dEnc = __toDateObj(fechaCruda);
-  if (dEnc) __setVal('fecha', __fmtDDMMYY(dEnc));              // no es <input type="date">
+  if (dEnc) __setVal('fecha', __fmtDDMMYY(dEnc));
 
-  // FECHA RETIRA → input date (yyyy-mm-dd)
   const frCruda = t.fecha_retira ?? t['FECHA RETIRA'] ?? t['Fecha retira'];
   const dRet = __toDateObj(frCruda);
   if (dRet) __setVal('fecha_retira', __fmtYYYYMMDD(dRet));
@@ -461,7 +502,7 @@ async function cargarTrabajoAnterior(nro) {
   __setVal('telefono',        t.telefono ?? t.tel ?? t['TELEFONO']);
   __setVal('cristal',         t.cristal ?? t['CRISTAL'] ?? t['Tipo de cristal']);
   __setVal('obra_social',     t.obra_social ?? t['OBRA SOCIAL']);
-  __setVal('importe_obra_social', t.importe_obra_social ?? t['- DESCUENTA OBRA SOCIAL']);
+  __setVal('importe_obra_social', t.importe_obra_social ?? t['- DESCUENTA OBRA SOCIAL'] ?? t['PRECIO OBRA SOCIAL']);
   __setVal('otro_concepto',   t.otro_concepto ?? t['OTRO CONCEPTO']);
   __setVal('precio_otro',     t.precio_otro ?? t['PRECIO OTRO']);
   __setVal('precio_cristal',  t.precio_cristal ?? t['PRECIO CRISTAL']);
@@ -476,7 +517,7 @@ async function cargarTrabajoAnterior(nro) {
   __setVal('add',             t.add ?? t['ADD']);
   __setVal('dr',              t.dr ?? t['DR'] ?? t['Doctor']);
 
-  // ====== GRADUACIONES (SELECTS + EJE) ======
+  // ====== GRADUACIONES ======
   __setSelectGrad('od_esf', t.od_esf ?? t['OD ESF']);
   __setSelectGrad('od_cil', t.od_cil ?? t['OD CIL']);
   __setVal('od_eje',        t.od_eje ?? t['OD EJE']);
@@ -485,39 +526,35 @@ async function cargarTrabajoAnterior(nro) {
   __setSelectGrad('oi_cil', t.oi_cil ?? t['OI CIL']);
   __setVal('oi_eje',        t.oi_eje ?? t['OI EJE']);
 
-  // ====== ENTREGA (por value o por label) ======
-  // tus values son 7/3/15 y los labels “Stock (7 días)”, “Urgente (3 días)”, “Laboratorio (15 días)”
+  // ====== ENTREGA ======
   const entrega = t.entrega ?? t['ENTREGA'] ?? t['Modalidad de entrega'];
   if (entrega != null) {
     const sel = document.getElementById('entrega-select');
     if (sel) {
       const s = String(entrega).trim();
-      // intento por value (7/3/15) o por texto visible
       const opt = [...sel.options].find(o => o.value === s || o.textContent?.includes(s));
       if (opt) sel.value = opt.value;
     }
   }
 
-  // ====== ARMAZÓN (manejo del “detalle en la columna número”) ======
+  // ====== ARMAZÓN (manejo “detalle en columna número”) ======
   const nArSheet = t.numero_armazon ?? t['NUMERO ARMAZON'] ?? t['N° ARMAZON'] ?? t['N ARMAZON'] ?? t['ARMAZON'];
   const detSheet = t.armazon_detalle ?? t['DETALLE ARMAZON'] ?? t['DETALLE'] ?? t['ARMAZON DETALLE'];
 
   if (nArSheet && __isArmazonCodeLike(nArSheet)) {
-    // Parece un código válido → lo pongo en Nº armazón (sin disparar blur/change)
     __setVal('numero_armazon', nArSheet, { trigger:false });
     if (detSheet) __setVal('armazon_detalle', detSheet);
   } else {
-    // Lo que vino en la columna “número” en realidad es DETALLE → lo cargo como detalle
     if (nArSheet) __setVal('armazon_detalle', nArSheet);
-    __setVal('numero_armazon', '', { trigger:false }); // limpio y NO disparo búsqueda
+    __setVal('numero_armazon', '', { trigger:false }); // NO dispara búsqueda
   }
 
-  // ====== Cierre ======
   if (typeof window.__updateTotals === 'function') window.__updateTotals();
   if (typeof window.recalcularFechaRetiro === 'function') window.recalcularFechaRetiro();
   if (window.Swal) Swal.fire('Listo', 'Trabajo cargado para edición', 'success');
 }
 window.cargarTrabajoAnterior = cargarTrabajoAnterior;
+
 
 // =========================================================================
 // INIT
