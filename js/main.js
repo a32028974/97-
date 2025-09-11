@@ -10,6 +10,8 @@ import { buscarNombrePorDNI } from './buscarNombre.js';
 import { buscarArmazonPorNumero } from './buscarArmazon.js';
 import { guardarTrabajo } from './guardar.js';
 import { initPhotoPack } from './fotoPack.js';
+import { API_URL, withParams, apiGet } from './api.js';
+
 
 // ===== Helpers DOM =====
 const $  = (id)  => document.getElementById(id);
@@ -398,7 +400,7 @@ document.addEventListener('DOMContentLoaded', () => {
     tel.addEventListener('input', ()=>{ tel.value = tel.value.replace(/[^0-9 +()-]/g,''); });
   }
 
-  // DNI → buscar nombre/teléfono (modal bloqueante + avance al Nombre si venías con Tab)
+  // DNI → buscar nombre/teléfono
   const dni=document.getElementById('dni'),
         nombre=document.getElementById('nombre'),
         telefono=document.getElementById('telefono'),
@@ -408,7 +410,7 @@ document.addEventListener('DOMContentLoaded', () => {
     dni.addEventListener('blur', doDNI);
     dni.addEventListener('keydown', (e)=>{
       if(e.key==='Enter'){ e.preventDefault(); doDNI(); }
-      if(e.key==='Tab'){ window.__dniGoNext = true; } // marcamos que venís tabulando
+      if(e.key==='Tab'){ window.__dniGoNext = true; }
     });
     dni.addEventListener('input', ()=>{ dni.value = dni.value.replace(/\D/g,''); });
   }
@@ -440,7 +442,7 @@ document.addEventListener('DOMContentLoaded', () => {
     dnp.addEventListener('input', ()=> dnp.value = fmt(dnp.value));
   }
 
-  // EJE: sanitizar y validar en blur
+  // EJE sanitizar/validar
   ['od_eje','oi_eje'].forEach(id=>{
     const el=document.getElementById(id);
     if(!el) return;
@@ -448,27 +450,11 @@ document.addEventListener('DOMContentLoaded', () => {
     el.addEventListener('blur',  ()=>validateEje(el));
   });
 
-  // Botones
-    const btnImp=document.getElementById('btn-imprimir'); 
+  // Botones básicos
+  const btnImp=document.getElementById('btn-imprimir'); 
   if(btnImp){ btnImp.addEventListener('click', buildPrintArea); }
   const btnClr=document.getElementById('btn-limpiar'); 
   if(btnClr){ btnClr.addEventListener('click', limpiarFormulario); }
-
-  // === NUEVO BOTÓN EDITAR ===
-  const btnEdit=document.getElementById('btn-editar');
-  if(btnEdit){
-    btnEdit.addEventListener('click', async () => {
-      const nro = document.getElementById('numero_trabajo')?.value.trim();
-      if (!nro) {
-        if (window.Swal) Swal.fire('Atención','Ingresá un número de trabajo','info');
-        return;
-      }
-      await cargarTrabajoAnterior(nro);
-    });
-  }
-
-  // Guardar
-  const form=document.getElementById('formulario');
 
   // Guardar
   const form=document.getElementById('formulario');
