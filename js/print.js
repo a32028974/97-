@@ -171,8 +171,8 @@
     <div class="r-text">
       <div class="r-line">Av. Ricardo Balbín 1125</div>
       <div class="r-line">San Miguel</div>
-      <div class="r-line">Cel/Whatsapp</div>
-      <div class="r-line">11-5668-9919</div>
+      <div class="r-line">Cel/Whatsapp 11-5668-9919</div>
+      
     </div>
   </div>
 
