@@ -216,7 +216,7 @@
       .nro .lbl{ font-size:8pt; color:#6b7280; }
       .nro .val{ font-weight:800; }
 
-      .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:1.8mm 3mm; }
+      .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:0.8mm 3mm; }
       .kv{ display:grid; grid-template-columns:22mm 1fr; column-gap:1.8mm; align-items:baseline; }
       .kv .k{ color:#505a6b; font-size:8.5pt; } .kv .v{ font-weight:600; }
 
