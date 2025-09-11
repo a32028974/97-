@@ -364,55 +364,38 @@ function fixTabDesdeCristal(){
       }
     }
   });
-}// =========================================================================
-// Cargar trabajo anterior por N° (edición) — robusto + normaliza datos
+}
+
+// =========================================================================
+// Cargar trabajo anterior por N° (edición) — robusto con mapeo tolerante
 // =========================================================================
 function __toDateObj(v){
   if (v instanceof Date) return v;
   const s = String(v ?? '').trim();
   if (!s) return null;
-  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);                 // ISO
-  if (m) return new Date(+m[1], +m[2]-1, +m[3]);
+  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/); if (m) return new Date(+m[1], +m[2]-1, +m[3]);
   m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);    // dd/mm/yy
-  if (m){
-    const dd=+m[1], mm=+m[2], yy=(m[3].length===2? 2000+ +m[3] : +m[3]);
-    const d=new Date(yy, mm-1, dd);
-    return isNaN(d) ? null : d;
-  }
-  const d = new Date(s);
-  return isNaN(d) ? null : d;
+  if (m){ const dd=+m[1], mm=+m[2], yy=(m[3].length===2? 2000+ +m[3] : +m[3]); const d=new Date(yy, mm-1, dd); return isNaN(d)?null:d; }
+  const d = new Date(s); return isNaN(d)?null:d;
 }
-function __fmtDDMMYY(d){
-  const dd=String(d.getDate()).padStart(2,'0');
-  const mm=String(d.getMonth()+1).padStart(2,'0');
-  const yy=String(d.getFullYear()).slice(-2);
-  return `${dd}/${mm}/${yy}`;
-}
-function __fmtYYYYMMDD(d){
-  const mm=String(d.getMonth()+1).padStart(2,'0');
-  const dd=String(d.getDate()).padStart(2,'0');
-  return `${d.getFullYear()}-${mm}-${dd}`;
-}
+function __fmtDDMMYY(d){ const dd=String(d.getDate()).padStart(2,'0'); const mm=String(d.getMonth()+1).padStart(2,'0'); const yy=String(d.getFullYear()).slice(-2); return `${dd}/${mm}/${yy}`; }
+function __fmtYYYYMMDD(d){ const mm=String(d.getMonth()+1).padStart(2,'0'); const dd=String(d.getDate()).padStart(2,'0'); return `${d.getFullYear()}-${mm}-${dd}`; }
 function __normEsfCil(raw){
   if (raw == null || raw === '') return '0.00';
-  let n = parseFloat(String(raw).replace(',', '.'));
-  if (isNaN(n)) return '0.00';
-  n = Math.round(n / 0.25) * 0.25;                             // snap a 0.25
+  let n = parseFloat(String(raw).replace(',', '.')); if (isNaN(n)) return '0.00';
+  n = Math.round(n / 0.25) * 0.25;
   let txt = Math.abs(n) < 1e-9 ? '0.00' : n.toFixed(2);
   if (n > 0) txt = '+' + txt;
-  if (n === 0) txt = '0.00';
   return txt;
 }
 function __setSelectGrad(id, raw){
-  const el = document.getElementById(id);
-  if (!el || el.tagName !== 'SELECT') return;
+  const el = document.getElementById(id); if (!el || el.tagName!=='SELECT') return;
   const val = __normEsfCil(raw);
   const opt = [...el.options].find(o => o.value === val || o.textContent?.trim() === val);
   if (opt) el.value = opt.value;
 }
 function __setVal(id, val, {trigger=true} = {}){
-  const el = document.getElementById(id);
-  if (!el) return;
+  const el = document.getElementById(id); if (!el) return;
   if (el.tagName === 'SELECT') {
     const v = String(val ?? '');
     const opt = [...el.options].find(o => o.value == v || o.textContent?.trim() == v || o.textContent?.includes(v));
@@ -430,12 +413,20 @@ function __isArmazonCodeLike(s){
   const v = String(s||'').trim().toUpperCase();
   return /^[A-Z0-9\-]{1,14}$/.test(v);
 }
-function __getNroFromRow(r = {}) {
-  const cand = [
-    r.numero_trabajo, r.numero, r.num, r.nro, r.n_trabajo, r.NRO, r.N,
-    r['NUMERO TRABAJO'], r['NÚMERO TRABAJO'], r['Numero trabajo']
-  ];
-  return String(cand.find(x => x != null) ?? '').trim();
+const __normKey = (k) => String(k||'')
+  .normalize('NFD').replace(/\p{Diacritic}/gu,'')
+  .toUpperCase().replace(/[^A-Z0-9]+/g,'_').replace(/^_|_$/g,'');
+
+/** Acceso tolerante a claves de la fila */
+function __buildKeyMap(row){
+  const map = {};
+  for (const [k,v] of Object.entries(row||{})) map[__normKey(k)] = v;
+  return map;
+}
+function __gv(K, ...aliases){ for (const a of aliases){ const v = K[__normKey(a)]; if (v!=null && v!=='') return v; } return undefined; }
+function __getNroFromRowK(K){
+  const v = __gv(K,'NUMERO_TRABAJO','NUMERO','NRO','N','N_TRABAJO','N__TRABAJO','NRO_TRABAJO','NRO_TRAB');
+  return String(v ?? '').trim();
 }
 
 // Busca historial con varios parámetros y hoja opcional
@@ -449,28 +440,19 @@ async function __fetchHistByNro(nro) {
     { histNro: nro,          limit: 200 },
   ];
   const sheetHints = [
-    {}, // sin hoja
-    { sheet: 'TRABAJOS WEB' },
-    { hoja:  'TRABAJOS WEB' },
-    { tab:   'TRABAJOS WEB' },
-    { ws:    'TRABAJOS WEB' },
+    {}, { sheet:'TRABAJOS WEB' }, { hoja:'TRABAJOS WEB' }, { tab:'TRABAJOS WEB' }, { ws:'TRABAJOS WEB' },
   ];
-
   for (const base of searchParamSets) {
     for (const sh of sheetHints) {
       try {
-        const params = { ...base, ...sh };
-        const url = withParams(API_URL, params);
+        const url = withParams(API_URL, { ...base, ...sh });
         const data = await apiGet(url);
         if (Array.isArray(data) && data.length) {
           // filtro exacto si puedo
-          const exact = data.find(r => __getNroFromRow(r) === String(nro));
+          const exact = data.find(r => __getNroFromRowK(__buildKeyMap(r)) === String(nro));
           return exact ? [exact] : data;
         }
-      } catch (e) {
-        // seguimos probando
-        // console.debug('fallback', base, sh, e?.message);
-      }
+      } catch {}
     }
   }
   return [];
@@ -479,55 +461,48 @@ async function __fetchHistByNro(nro) {
 async function cargarTrabajoAnterior(nro) {
   const data = await __fetchHistByNro(nro);
 
-  if (!data.length) {
-    if (window.Swal) Swal.fire('No encontrado', `No hay trabajo con N° ${nro}`, 'warning');
-    return;
-  }
+  if (!data.length) { if (window.Swal) Swal.fire('No encontrado', `No hay trabajo con N° ${nro}`, 'warning'); return; }
 
   const t = data[0] || {};
+  const K = __buildKeyMap(t);
 
   // ====== FECHAS ======
-  const fechaCruda = t.fecha ?? t.FECHA ?? t['Fecha'] ?? t['FECHA QUE ENCARGA'];
-  const dEnc = __toDateObj(fechaCruda);
-  if (dEnc) __setVal('fecha', __fmtDDMMYY(dEnc));
+  const fechaCruda = __gv(K,'FECHA','FECHA_QUE_ENCARGA');
+  const dEnc = __toDateObj(fechaCruda);         if (dEnc) __setVal('fecha', __fmtDDMMYY(dEnc));
 
-  const frCruda = t.fecha_retira ?? t['FECHA RETIRA'] ?? t['Fecha retira'];
-  const dRet = __toDateObj(frCruda);
-  if (dRet) __setVal('fecha_retira', __fmtYYYYMMDD(dRet));
+  const frCruda = __gv(K,'FECHA_RETIRA','FECHA_QUE_RETIRA','RETIRA');
+  const dRet = __toDateObj(frCruda);            if (dRet) __setVal('fecha_retira', __fmtYYYYMMDD(dRet));
 
   // ====== CAMPOS BÁSICOS ======
-  __setVal('numero_trabajo',  t.numero_trabajo ?? t.numero ?? t.nro ?? t['NUMERO TRABAJO'] ?? t['NÚMERO TRABAJO']);
-  __setVal('dni',             t.dni ?? t.DOCUMENTO ?? t.documento);
-  __setVal('nombre',          t.nombre ?? t['APELLIDO Y NOMBRE'] ?? t['CLIENTE'] ?? t['Nombre']);
-  __setVal('telefono',        t.telefono ?? t.tel ?? t['TELEFONO']);
-  __setVal('cristal',         t.cristal ?? t['CRISTAL'] ?? t['Tipo de cristal']);
-  __setVal('obra_social',     t.obra_social ?? t['OBRA SOCIAL']);
-  __setVal('importe_obra_social', t.importe_obra_social ?? t['- DESCUENTA OBRA SOCIAL'] ?? t['PRECIO OBRA SOCIAL']);
-  __setVal('otro_concepto',   t.otro_concepto ?? t['OTRO CONCEPTO']);
-  __setVal('precio_otro',     t.precio_otro ?? t['PRECIO OTRO']);
-  __setVal('precio_cristal',  t.precio_cristal ?? t['PRECIO CRISTAL']);
-  __setVal('precio_armazon',  t.precio_armazon ?? t['PRECIO ARMAZON']);
-  __setVal('total',           t.total);
-  __setVal('sena',            t.sena ?? t['SEÑA'] ?? t['SENA']);
-  __setVal('saldo',           t.saldo);
-  __setVal('vendedor',        t.vendedor ?? t['VENDEDOR']);
-  __setVal('forma_pago',      t.forma_pago ?? t['FORMA DE PAGO']);
-  __setVal('distancia_focal', t.distancia_focal ?? t['DISTANCIA'] ?? t['DISTANCIA FOCAL']);
-  __setVal('dnp',             t.dnp ?? t['DNP']);
-  __setVal('add',             t.add ?? t['ADD']);
-  __setVal('dr',              t.dr ?? t['DR'] ?? t['Doctor']);
+  __setVal('numero_trabajo',  __gv(K,'NUMERO_TRABAJO','NUMERO','NRO','N_TRABAJO'));
+  __setVal('dni',             __gv(K,'DOCUMENTO','DNI'));
+  __setVal('nombre',          __gv(K,'APELLIDO_Y_NOMBRE','APELLIDO_NOMBRE','CLIENTE','NOMBRE','NOMBRE_COMPLETO'));
+  __setVal('telefono',        __gv(K,'TELEFONO','CELULAR','CEL_WHATSAPP','TEL'));
+  __setVal('cristal',         __gv(K,'CRISTAL','TIPO_DE_CRISTAL','LENTE','TIPO_LENTE'));
+  __setVal('obra_social',     __gv(K,'OBRA_SOCIAL'));
+  __setVal('importe_obra_social', __gv(K,'DESCUENTA_OBRA_SOCIAL','PRECIO_OBRA_SOCIAL','IMPORTE_OBRA_SOCIAL'));
+  __setVal('otro_concepto',   __gv(K,'OTRO_CONCEPTO','OTRO','TRATAMIENTO'));
+  __setVal('precio_otro',     __gv(K,'PRECIO_OTRO','PRECIO_TRATAMIENTO'));
+  __setVal('precio_cristal',  __gv(K,'PRECIO_CRISTAL','PRECIO_LENTE','PRECIO_CRISTALES'));
+  __setVal('precio_armazon',  __gv(K,'PRECIO_ARMAZON','PRECIO_ARMAZON_','PRECIO_ANTEOJO','PRECIO_MARCO'));
+  __setVal('total',           __gv(K,'TOTAL'));
+  __setVal('sena',            __gv(K,'SENA','SEÑA'));
+  __setVal('saldo',           __gv(K,'SALDO'));
+  __setVal('vendedor',        __gv(K,'VENDEDOR'));
+  __setVal('forma_pago',      __gv(K,'FORMA_DE_PAGO','FORMA_PAGO'));
+  __setVal('distancia_focal', __gv(K,'DISTANCIA_FOCAL','DISTANCIA','DISTANCIA_FOC'));
 
   // ====== GRADUACIONES ======
-  __setSelectGrad('od_esf', t.od_esf ?? t['OD ESF']);
-  __setSelectGrad('od_cil', t.od_cil ?? t['OD CIL']);
-  __setVal('od_eje',        t.od_eje ?? t['OD EJE']);
+  __setSelectGrad('od_esf', __gv(K,'OD_ESF'));
+  __setSelectGrad('od_cil', __gv(K,'OD_CIL'));
+  __setVal('od_eje',        __gv(K,'OD_EJE'));
 
-  __setSelectGrad('oi_esf', t.oi_esf ?? t['OI ESF']);
-  __setSelectGrad('oi_cil', t.oi_cil ?? t['OI CIL']);
-  __setVal('oi_eje',        t.oi_eje ?? t['OI EJE']);
+  __setSelectGrad('oi_esf', __gv(K,'OI_ESF'));
+  __setSelectGrad('oi_cil', __gv(K,'OI_CIL'));
+  __setVal('oi_eje',        __gv(K,'OI_EJE'));
 
   // ====== ENTREGA ======
-  const entrega = t.entrega ?? t['ENTREGA'] ?? t['Modalidad de entrega'];
+  const entrega = __gv(K,'ENTREGA','MODALIDAD_DE_ENTREGA');
   if (entrega != null) {
     const sel = document.getElementById('entrega-select');
     if (sel) {
@@ -538,14 +513,16 @@ async function cargarTrabajoAnterior(nro) {
   }
 
   // ====== ARMAZÓN (manejo “detalle en columna número”) ======
-  const nArSheet = t.numero_armazon ?? t['NUMERO ARMAZON'] ?? t['N° ARMAZON'] ?? t['N ARMAZON'] ?? t['ARMAZON'];
-  const detSheet = t.armazon_detalle ?? t['DETALLE ARMAZON'] ?? t['DETALLE'] ?? t['ARMAZON DETALLE'];
+  // En algunas hojas el número está como "N ANTEOJO"
+  const nArSheet = __gv(K,'NUMERO_ARMAZON','NRO_ARMAZON','N_ARMAZON','N_ANTEOJO','NUMERO_ANTEOJO','N_ANTEJO');
+  const detSheet = __gv(K,'ARMAZON_DETALLE','DETALLE_ARMAZON','ARMAZON','DETALLE','MARCA_MODELO','MODELO','MARCA');
 
   if (nArSheet && __isArmazonCodeLike(nArSheet)) {
     __setVal('numero_armazon', nArSheet, { trigger:false });
     if (detSheet) __setVal('armazon_detalle', detSheet);
   } else {
     if (nArSheet) __setVal('armazon_detalle', nArSheet);
+    if (detSheet) __setVal('armazon_detalle', detSheet);
     __setVal('numero_armazon', '', { trigger:false }); // NO dispara búsqueda
   }
 
@@ -554,8 +531,6 @@ async function cargarTrabajoAnterior(nro) {
   if (window.Swal) Swal.fire('Listo', 'Trabajo cargado para edición', 'success');
 }
 window.cargarTrabajoAnterior = cargarTrabajoAnterior;
-
-
 // =========================================================================
 // INIT
 // =========================================================================
