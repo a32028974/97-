@@ -232,9 +232,28 @@
       .vendedor{ color:#505a6b; }
 
 
-      .right .r-head{ display:grid; grid-template-columns:20mm 1fr;             column-gap:2mm; align-items:center; margin-bottom:1.2mm; }
-      .r-logo-img{ width:20mm; height:20mm; object-fit:contain; }
-      .r-line{ font-size:8.5pt; color:#505a6b; line-height:1.2; }
+      .right .r-head{
+      display:flex;
+      flex-direction:column;
+      align-items:flex-start;
+      margin-bottom:2mm;
+      }
+      
+      .r-logo-img{
+      width:50mm;
+      height:auto;
+      object-fit:contain;
+      margin-bottom:1mm;
+      }
+      
+      
+      .r-line{
+      font-size:10pt;
+      color:#505a6b;
+      line-height:1.3;
+      }
+
+      
       .right .r-logo-dot{ width:7mm; height:7mm; background:${BRAND}; border-radius:50%; }
       .right .r-title{ font-weight:800; color:${BRAND}; line-height:1.1; }
       .right .r-sub{ color:#6b7280; font-size:8pt; line-height:1.1; margin-top:.2mm; }
