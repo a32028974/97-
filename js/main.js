@@ -449,10 +449,26 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Botones
-  const btnImp=document.getElementById('btn-imprimir'); 
+    const btnImp=document.getElementById('btn-imprimir'); 
   if(btnImp){ btnImp.addEventListener('click', buildPrintArea); }
   const btnClr=document.getElementById('btn-limpiar'); 
   if(btnClr){ btnClr.addEventListener('click', limpiarFormulario); }
+
+  // === NUEVO BOTÓN EDITAR ===
+  const btnEdit=document.getElementById('btn-editar');
+  if(btnEdit){
+    btnEdit.addEventListener('click', async () => {
+      const nro = document.getElementById('numero_trabajo')?.value.trim();
+      if (!nro) {
+        if (window.Swal) Swal.fire('Atención','Ingresá un número de trabajo','info');
+        return;
+      }
+      await cargarTrabajoAnterior(nro);
+    });
+  }
+
+  // Guardar
+  const form=document.getElementById('formulario');
 
   // Guardar
   const form=document.getElementById('formulario');
