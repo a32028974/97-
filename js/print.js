@@ -257,8 +257,11 @@
       .right .r-logo-dot{ width:7mm; height:7mm; background:${BRAND}; border-radius:50%; }
       .right .r-title{ font-weight:800; color:${BRAND}; line-height:1.1; }
       .right .r-sub{ color:#6b7280; font-size:8pt; line-height:1.1; margin-top:.2mm; }
-      .right .r-kv{ display:grid; grid-template-columns:16mm 1fr; gap:1.2mm; align-items:baseline; margin:.6mm 0; }
-      .right .rk{ color:#505a6b; font-size:8.5pt; } .right .rv{ font-weight:700; }
+      
+      .right .r-kv{ display:grid; grid-template-columns:22mm 1fr; gap:1.2mm; align-items:baseline; margin:.6mm 0; }
+      .right .rk{ color:#505a6b; font-size:8.5pt; white-space:nowrap }
+      .right .rv{ font-weight:700; }
+      
       .right .r-qr{ margin-top:2mm; display:flex; justify-content:center; }
       .right .r-qr img{ width:34mm; height:34mm; object-fit:contain; }
     </style>`;
