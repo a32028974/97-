@@ -366,105 +366,157 @@ function fixTabDesdeCristal(){
   });
 }
 // =========================================================================
-// Cargar trabajo anterior por N° (edición) — robusto con varios fallback
+// Cargar trabajo anterior por N° (edición) — normaliza fechas, grads y armazón
 // =========================================================================
-function __getNroFromRow(r = {}) {
-  const cand = [
-    r.numero, r.nro, r.n_trabajo, r.NRO,
-    r['NUMERO TRABAJO'], r['NÚMERO TRABAJO'],
-    r['Numero trabajo'], r['Numero_Trabajo'], r['NUMERO']
-  ];
-  return String(cand.find(x => x != null) ?? '').replace(/\s+/g,'');
-}
-
-async function __fetchHistByNro(nro) {
-  const tries = [
-    { histBuscar: `@${nro}`, limit: 50 },  // exacto (si el backend lo soporta)
-    { histBuscar: `${nro}`,  limit: 50 },  // contiene
-    { histNro: nro,          limit: 50 },  // otros nombres comunes
-    { nro: nro,              limit: 50 },
-    { buscar: nro,           limit: 50 },
-  ];
-
-  for (const params of tries) {
-    try {
-      const url = withParams(API_URL, params);
-      const data = await apiGet(url);
-      if (Array.isArray(data) && data.length) {
-        // Si vino más de uno, elijo el que matchee exactamente el N°
-        const exact = data.find(r => __getNroFromRow(r) === String(nro));
-        return exact ? [exact] : data;
-      }
-    } catch (e) {
-      // sigo probando el próximo modo
-      console.debug('hist fallback err:', e?.message);
-    }
+function __toDateObj(v){
+  if (v instanceof Date) return v;
+  const s = String(v ?? '').trim();
+  if (!s) return null;
+  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);                 // ISO
+  if (m) return new Date(+m[1], +m[2]-1, +m[3]);
+  m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);    // dd/mm/yy
+  if (m){
+    const dd=+m[1], mm=+m[2], yy=(m[3].length===2? 2000+ +m[3] : +m[3]);
+    const d=new Date(yy, mm-1, dd);
+    return isNaN(d) ? null : d;
   }
-  return [];
+  const d = new Date(s);                                       // “Wed Sep 10 2025 …”
+  return isNaN(d) ? null : d;
+}
+function __fmtDDMMYY(d){
+  const dd=String(d.getDate()).padStart(2,'0');
+  const mm=String(d.getMonth()+1).padStart(2,'0');
+  const yy=String(d.getFullYear()).slice(-2);
+  return `${dd}/${mm}/${yy}`;
+}
+function __fmtYYYYMMDD(d){
+  const mm=String(d.getMonth()+1).padStart(2,'0');
+  const dd=String(d.getDate()).padStart(2,'0');
+  return `${d.getFullYear()}-${mm}-${dd}`;
+}
+function __normEsfCil(raw){
+  if (raw == null || raw === '') return '0.00';
+  let n = parseFloat(String(raw).replace(',', '.'));
+  if (isNaN(n)) return '0.00';
+  n = Math.round(n / 0.25) * 0.25;                             // snap a 0.25
+  let txt = Math.abs(n) < 1e-9 ? '0.00' : n.toFixed(2);
+  if (n > 0) txt = '+' + txt;
+  if (n === 0) txt = '0.00';
+  return txt;
+}
+function __setSelectGrad(id, raw){
+  const el = document.getElementById(id);
+  if (!el || el.tagName !== 'SELECT') return;
+  const val = __normEsfCil(raw);
+  const opt = [...el.options].find(o => o.value === val || o.textContent?.trim() === val);
+  if (opt) el.value = opt.value;
+}
+function __setVal(id, val, {trigger=true} = {}){
+  const el = document.getElementById(id);
+  if (!el) return;
+  if (el.tagName === 'SELECT') {
+    const opt = [...el.options].find(o => o.value == val || o.textContent?.trim() == val);
+    if (opt) el.value = opt.value;
+  } else {
+    el.value = String(val ?? '');
+  }
+  if (trigger){
+    el.dispatchEvent(new Event('input',  { bubbles:true }));
+    el.dispatchEvent(new Event('change', { bubbles:true }));
+    el.dispatchEvent(new Event('blur',   { bubbles:true }));
+  }
+}
+function __isArmazonCodeLike(s){
+  const v = String(s||'').trim().toUpperCase();
+  // acepto códigos alfanuméricos y guiones hasta 12–14 caracteres (RB1234, 13-336, etc.)
+  return /^[A-Z0-9\-]{1,14}$/.test(v);
 }
 
 async function cargarTrabajoAnterior(nro) {
-  const data = await __fetchHistByNro(nro);
+  const url  = withParams(API_URL, { histBuscar: `@${nro}`, limit: 1 });
+  const data = await apiGet(url);
 
-  if (!data.length) {
+  if (!data || !data.length) {
     if (window.Swal) Swal.fire('No encontrado', `No hay trabajo con N° ${nro}`, 'warning');
     return;
   }
 
-  const t = data[0];
+  const t = data[0] || {};
 
-  const map = {
-    // mapeos útiles por si las claves no coinciden 1:1 con los ids
-    numero: 'numero_trabajo', num: 'numero_trabajo', nro: 'numero_trabajo',
-    n_trabajo: 'numero_trabajo', NRO: 'numero_trabajo',
-    'NUMERO TRABAJO': 'numero_trabajo', 'NÚMERO TRABAJO': 'numero_trabajo',
+  // ====== FECHAS ======
+  // FECHA → input texto (dd/mm/aa)
+  const fechaCruda = t.fecha ?? t.FECHA ?? t['Fecha'] ?? t['FECHA QUE ENCARGA'];
+  const dEnc = __toDateObj(fechaCruda);
+  if (dEnc) __setVal('fecha', __fmtDDMMYY(dEnc));              // no es <input type="date">
 
-    n_armazon: 'numero_armazon', num_armazon: 'numero_armazon',
-    nro_armazon: 'numero_armazon', armazon_numero: 'numero_armazon',
-    'NUMERO ARMAZON': 'numero_armazon',
+  // FECHA RETIRA → input date (yyyy-mm-dd)
+  const frCruda = t.fecha_retira ?? t['FECHA RETIRA'] ?? t['Fecha retira'];
+  const dRet = __toDateObj(frCruda);
+  if (dRet) __setVal('fecha_retira', __fmtYYYYMMDD(dRet));
 
-    armazon: 'armazon_detalle', detalle_armazon: 'armazon_detalle',
-    ARMAZON: 'armazon_detalle',
+  // ====== CAMPOS BÁSICOS ======
+  __setVal('numero_trabajo',  t.numero_trabajo ?? t.numero ?? t.nro ?? t['NUMERO TRABAJO'] ?? t['NÚMERO TRABAJO']);
+  __setVal('dni',             t.dni ?? t.DOCUMENTO ?? t.documento);
+  __setVal('nombre',          t.nombre ?? t['APELLIDO Y NOMBRE'] ?? t['CLIENTE'] ?? t['Nombre']);
+  __setVal('telefono',        t.telefono ?? t.tel ?? t['TELEFONO']);
+  __setVal('cristal',         t.cristal ?? t['CRISTAL'] ?? t['Tipo de cristal']);
+  __setVal('obra_social',     t.obra_social ?? t['OBRA SOCIAL']);
+  __setVal('importe_obra_social', t.importe_obra_social ?? t['- DESCUENTA OBRA SOCIAL']);
+  __setVal('otro_concepto',   t.otro_concepto ?? t['OTRO CONCEPTO']);
+  __setVal('precio_otro',     t.precio_otro ?? t['PRECIO OTRO']);
+  __setVal('precio_cristal',  t.precio_cristal ?? t['PRECIO CRISTAL']);
+  __setVal('precio_armazon',  t.precio_armazon ?? t['PRECIO ARMAZON']);
+  __setVal('total',           t.total);
+  __setVal('sena',            t.sena ?? t['SEÑA'] ?? t['SENA']);
+  __setVal('saldo',           t.saldo);
+  __setVal('vendedor',        t.vendedor ?? t['VENDEDOR']);
+  __setVal('forma_pago',      t.forma_pago ?? t['FORMA DE PAGO']);
+  __setVal('distancia_focal', t.distancia_focal ?? t['DISTANCIA'] ?? t['DISTANCIA FOCAL']);
+  __setVal('dnp',             t.dnp ?? t['DNP']);
+  __setVal('add',             t.add ?? t['ADD']);
+  __setVal('dr',              t.dr ?? t['DR'] ?? t['Doctor']);
 
-    precio_armazon: 'precio_armazon',
-    precio_otro: 'precio_otro',
-    importe_obra_social: 'importe_obra_social',
-    precio_cristal: 'precio_cristal',
+  // ====== GRADUACIONES (SELECTS + EJE) ======
+  __setSelectGrad('od_esf', t.od_esf ?? t['OD ESF']);
+  __setSelectGrad('od_cil', t.od_cil ?? t['OD CIL']);
+  __setVal('od_eje',        t.od_eje ?? t['OD EJE']);
 
-    entrega: 'entrega-select',
-    fecha_retira: 'fecha_retira',
-    nombre_cliente: 'nombre', tel: 'telefono', telefono_cliente: 'telefono',
-  };
+  __setSelectGrad('oi_esf', t.oi_esf ?? t['OI ESF']);
+  __setSelectGrad('oi_cil', t.oi_cil ?? t['OI CIL']);
+  __setVal('oi_eje',        t.oi_eje ?? t['OI EJE']);
 
-  const setVal = (id, val) => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    if (el.tagName === 'SELECT') {
-      const v = String(val ?? '');
-      const opt = [...el.options].find(o => o.value === v || o.textContent?.trim() === v);
-      if (opt) el.value = opt.value;
-    } else {
-      el.value = String(val ?? '');
+  // ====== ENTREGA (por value o por label) ======
+  // tus values son 7/3/15 y los labels “Stock (7 días)”, “Urgente (3 días)”, “Laboratorio (15 días)”
+  const entrega = t.entrega ?? t['ENTREGA'] ?? t['Modalidad de entrega'];
+  if (entrega != null) {
+    const sel = document.getElementById('entrega-select');
+    if (sel) {
+      const s = String(entrega).trim();
+      // intento por value (7/3/15) o por texto visible
+      const opt = [...sel.options].find(o => o.value === s || o.textContent?.includes(s));
+      if (opt) sel.value = opt.value;
     }
-    el.dispatchEvent(new Event('input',  { bubbles:true }));
-    el.dispatchEvent(new Event('change', { bubbles:true }));
-    el.dispatchEvent(new Event('blur',   { bubbles:true }));
-  };
-
-  // seteo Nº primero por si viene con otro nombre
-  const nroExact = __getNroFromRow(t);
-  if (nroExact) setVal('numero_trabajo', nroExact);
-
-  // resto de campos
-  for (const [k, v] of Object.entries(t)) {
-    setVal(map[k] || k, v);
   }
 
+  // ====== ARMAZÓN (manejo del “detalle en la columna número”) ======
+  const nArSheet = t.numero_armazon ?? t['NUMERO ARMAZON'] ?? t['N° ARMAZON'] ?? t['N ARMAZON'] ?? t['ARMAZON'];
+  const detSheet = t.armazon_detalle ?? t['DETALLE ARMAZON'] ?? t['DETALLE'] ?? t['ARMAZON DETALLE'];
+
+  if (nArSheet && __isArmazonCodeLike(nArSheet)) {
+    // Parece un código válido → lo pongo en Nº armazón (sin disparar blur/change)
+    __setVal('numero_armazon', nArSheet, { trigger:false });
+    if (detSheet) __setVal('armazon_detalle', detSheet);
+  } else {
+    // Lo que vino en la columna “número” en realidad es DETALLE → lo cargo como detalle
+    if (nArSheet) __setVal('armazon_detalle', nArSheet);
+    __setVal('numero_armazon', '', { trigger:false }); // limpio y NO disparo búsqueda
+  }
+
+  // ====== Cierre ======
   if (typeof window.__updateTotals === 'function') window.__updateTotals();
   if (typeof window.recalcularFechaRetiro === 'function') window.recalcularFechaRetiro();
   if (window.Swal) Swal.fire('Listo', 'Trabajo cargado para edición', 'success');
 }
-
 window.cargarTrabajoAnterior = cargarTrabajoAnterior;
 
 // =========================================================================
