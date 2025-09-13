@@ -240,7 +240,7 @@
       }
       
       .r-logo-img{
-      width:40mm;
+      width:35mm;
       height:auto;
       object-fit:contain;
       margin-bottom:1mm;
