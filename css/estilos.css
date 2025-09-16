@@ -245,3 +245,49 @@ button.ghost{ background:#eef2ff; color:var(--brand); }
 input#od_eje, input#oi_eje{ transition: border-color .15s ease; }
 .galeria{ grid-template-columns: repeat(auto-fill, minmax(110px,1fr)); gap:10px; }
 .actions .ghost{ border:1px solid #e5e7eb; }
+
+/* ====== NUEVO: Ticket de totales claro ====== */
+.totals-ticket{
+  border:1px solid var(--line);
+  border-radius:12px;
+  padding:12px;
+  background:#fcfdff;
+}
+.totals-ticket .tt-title{
+  font-weight:800; color:#111827; margin-bottom:8px;
+}
+.tt-row{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:6px 4px; border-radius:8px;
+  font-weight:600;
+}
+.tt-row.sum{ color:#065f46; background: #ecfdf5; }       /* ➕ Suma */
+.tt-row.rest{ color:#7f1d1d; background: #fef2f2; }      /* ➖ Resta */
+.tt-row.subtotal{
+  background:#eef2ff; color:#1e3a8a; margin-top:6px; border:1px dashed #c7d2fe;
+}
+.tt-row.total{
+  background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; font-size:18px;
+}
+.tt-row .tt-val{ font-feature-settings: "tnum" 1, "lnum" 1; }
+.tt-row .tt-big{ font-size:22px; font-weight:800; }
+
+/* Separador */
+.tt-divider{ height:1px; background:var(--line); margin:8px 0; }
+
+/* Barra de progreso (seña/total) */
+.tt-meter{
+  height:10px; background:#e5e7eb; border-radius:999px; overflow:hidden; margin-top:8px;
+}
+.tt-meter > div{
+  height:100%; width:0%;
+  background:linear-gradient(90deg, #10b981, #22c55e);
+  transition: width .25s ease;
+}
+
+/* Ocultar sin romper layout (para inputs originales) */
+.visually-hidden{
+  position:absolute !important;
+  width:1px; height:1px; padding:0; margin:-1px; overflow:hidden;
+  clip:rect(0,0,0,0); white-space:nowrap; border:0;
+}
