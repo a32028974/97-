@@ -30,7 +30,7 @@
         <div class="brand">
           <img src="logo.png" alt="Óptica Cristal" />
           <div>
-            <h1> agregar localidad y v9 </h1>
+            <h1> agregar localidad y v10 </h1>
             <p class="muted small">San Miguel • Argentina</p>
           </div>
         </div>
@@ -229,20 +229,20 @@
               <span>Cristal</span>
               <span id="tt-cristal" class="tt-val">$ 0</span>
             </div>
-            <div class="tt-row sum">
-              <span>Otro concepto</span>
-              <span id="tt-otro" class="tt-val">$ 0</span>
-            </div>
+           <div class="tt-row sum" id="tt-row-otro">
+  <span id="tt-otro-label">Otro concepto</span>
+  <span id="tt-otro" class="tt-val">$ 0</span>
+</div>
 
             <div class="tt-row subtotal">
               <span>Subtotal</span>
               <span id="tt-subtotal" class="tt-val">$ 0</span>
             </div>
 
-            <div class="tt-row rest">
-              <span>− Obra social</span>
-              <span id="tt-obra" class="tt-val">− $ 0</span>
-            </div>
+           <div class="tt-row rest" id="tt-row-obra">
+  <span id="tt-obra-label">− Obra social</span>
+  <span id="tt-obra" class="tt-val">− $ 0</span>
+</div>
             <div class="tt-row rest">
               <span>− Seña</span>
               <span id="tt-sena" class="tt-val">− $ 0</span>
@@ -326,87 +326,111 @@
 
   <!-- Cálculo de totales en vivo (inline y aislado) -->
   <script type="module">
-    import { parseMoney, sanitizePrice } from './js/utils.js';
+  import { parseMoney, sanitizePrice } from './js/utils.js';
 
-    const $ = (id) => document.getElementById(id);
-    const fmt = (n) => {
-      const v = Math.max(0, Math.round(n || 0));
-      return '$ ' + v.toLocaleString('es-AR');
-    };
+  const $ = (id) => document.getElementById(id);
+  const fmt = (n) => {
+    const v = Math.max(0, Math.round(n || 0));
+    return '$ ' + v.toLocaleString('es-AR');
+  };
 
-    const fields = {
-      precio_armazon: $('precio_armazon'),
-      precio_cristal: $('precio_cristal'),
-      precio_otro: $('precio_otro'),
-      importe_obra_social: $('importe_obra_social'),
-      sena: $('sena'),
-      total: $('total'),
-      saldo: $('saldo'),
-    };
+  const fields = {
+    precio_armazon: $('precio_armazon'),
+    precio_cristal: $('precio_cristal'),
+    precio_otro: $('precio_otro'),
+    otro_concepto: $('otro_concepto'),
+    importe_obra_social: $('importe_obra_social'),
+    concepto_negativo: $('obra_social'),
+    sena: $('sena'),
+    total: $('total'),
+    saldo: $('saldo'),
+  };
 
-    // Valores visibles en el ticket
-    const view = {
-      armazon: $('tt-armazon'),
-      cristal: $('tt-cristal'),
-      otro: $('tt-otro'),
-      obra: $('tt-obra'),
-      subtotal: $('tt-subtotal'),
-      sena: $('tt-sena'),
-      saldo: $('tt-saldo'),
-      meter: $('tt-meter-fill'),
-    };
+  const view = {
+    armazon: $('tt-armazon'),
+    cristal: $('tt-cristal'),
+    otro: $('tt-otro'),
+    otroLabel: $('tt-otro-label'),
+    obra: $('tt-obra'),
+    obraLabel: $('tt-obra-label'),
+    subtotal: $('tt-subtotal'),
+    sena: $('tt-sena'),
+    saldo: $('tt-saldo'),
+    meter: $('tt-meter-fill'),
+    rowOtro: $('tt-row-otro'),
+    rowObra: $('tt-row-obra'),
+  };
 
-    // Normaliza inputs de dinero al tipear
-    const moneyInputs = [
-      fields.precio_armazon,
-      fields.precio_cristal,
-      fields.precio_otro,
-      fields.importe_obra_social,
-      fields.sena
-    ].filter(Boolean);
+  // Normalizar inputs de dinero
+  const moneyInputs = [
+    fields.precio_armazon,
+    fields.precio_cristal,
+    fields.precio_otro,
+    fields.importe_obra_social,
+    fields.sena
+  ].filter(Boolean);
 
-    moneyInputs.forEach(el => {
-      el.addEventListener('input', () => {
-        sanitizePrice(el);
-        updateTotals();
-      });
-      el.addEventListener('blur', updateTotals);
-    });
+  moneyInputs.forEach(el => {
+    el.addEventListener('input', () => { sanitizePrice(el); updateTotals(); });
+    el.addEventListener('blur', updateTotals);
+  });
 
-    function val(el){ return parseMoney(el?.value || 0); }
+  // También reflejar texto dinámico
+  [fields.otro_concepto, fields.concepto_negativo].forEach(el => {
+    if (el) ['input','change','blur'].forEach(ev => el.addEventListener(ev, updateTotals));
+  });
 
-    function updateTotals(){
-      const ar = val(fields.precio_armazon);
-      const cr = val(fields.precio_cristal);
-      const ot = val(fields.precio_otro);
-      const os = val(fields.importe_obra_social);
-      const se = val(fields.sena);
+  function val(el){ return parseMoney(el?.value || 0); }
 
-      const subtotal = ar + cr + ot;          // ➕ Sumas
-      const total = subtotal;                  // (Total bruto)
-      const saldo = Math.max(0, total - os - se); // ➖ Descuentos
+  function updateTotals(){
+    const ar = val(fields.precio_armazon);
+    const cr = val(fields.precio_cristal);
+    const ot = val(fields.precio_otro);
+    const os = val(fields.importe_obra_social);
+    const se = val(fields.sena);
 
-      // Vista
-      view.armazon.textContent = fmt(ar);
-      view.cristal.textContent = fmt(cr);
-      view.otro.textContent    = fmt(ot);
-      view.subtotal.textContent= fmt(subtotal);
-      view.obra.textContent    = '− ' + fmt(os);
-      view.sena.textContent    = '− ' + fmt(se);
-      view.saldo.textContent   = fmt(saldo);
+    const subtotal = ar + cr + ot;
+    const total = subtotal;
+    const saldo = Math.max(0, total - os - se);
 
-      // Barra de progreso de pago (seña sobre total)
-      const pct = total > 0 ? Math.min(100, Math.max(0, Math.round((se / total) * 100))) : 0;
-      view.meter.style.width = pct + '%';
+    // Totales fijos
+    view.armazon.textContent  = fmt(ar);
+    view.cristal.textContent  = fmt(cr);
+    view.subtotal.textContent = fmt(subtotal);
+    view.sena.textContent     = '− ' + fmt(se);
+    view.saldo.textContent    = fmt(saldo);
 
-      // Mantener compatibilidad con tus campos originales
-      if (fields.total) fields.total.value = total;
-      if (fields.saldo) fields.saldo.value = saldo;
+    // ====== OTRO CONCEPTO ======
+    const txtOtro = (fields.otro_concepto?.value || '').trim();
+    if (ot > 0 && txtOtro){
+      view.otroLabel.textContent = txtOtro;
+      view.otro.textContent = fmt(ot);
+      view.rowOtro.hidden = false;
+    } else {
+      view.rowOtro.hidden = true;
     }
 
-    // Primer render
-    updateTotals();
-  </script>
+    // ====== CONCEPTO NEGATIVO ======
+    const txtNeg = (fields.concepto_negativo?.value || '').trim();
+    if (os > 0 && txtNeg){
+      view.obraLabel.textContent = '− ' + txtNeg;
+      view.obra.textContent = '− ' + fmt(os);
+      view.rowObra.hidden = false;
+    } else {
+      view.rowObra.hidden = true;
+    }
+
+    // Barra progreso
+    const pct = total > 0 ? Math.min(100, Math.max(0, Math.round((se / total) * 100))) : 0;
+    view.meter.style.width = pct + '%';
+
+    // Campos originales
+    if (fields.total) fields.total.value = total;
+    if (fields.saldo) fields.saldo.value = saldo;
+  }
+
+  updateTotals();
+</script>
 
 <footer>
   Desarrollado por Juan Ignacio Solis.
