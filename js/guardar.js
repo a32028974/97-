@@ -68,6 +68,7 @@ function resumenPack() {
     "DNI": V("dni"),
     "Cliente": V("nombre"),
     "Teléfono": V("telefono"),
+    "Localidad": V("localidad")
     "DR (oculista)": V("dr"),
     "Cristal": `${V("cristal")} ${money(V("precio_cristal"))}`,
     "Obra social": `${V("obra_social")} ${money(V("importe_obra_social"))}`,
@@ -184,6 +185,10 @@ export async function guardarTrabajo({ progress } = {}) {
 
     const fd = new FormData(formEl);
     const body = new URLSearchParams(fd);
+    // ===== LOCALIDAD =====
+    const loc = (fd.get("localidad") || "").toString().trim();
+    body.set("localidad", loc);   // nombre del input
+    body.set("LOCALIDAD", loc);   // alias por encabezado de la hoja (columna AH)
 
     // Forzamos el número final decidido del lado cliente
     body.set("numero_trabajo", nroFinalCliente);
