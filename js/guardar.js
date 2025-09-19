@@ -68,7 +68,7 @@ function resumenPack() {
     "DNI": V("dni"),
     "Cliente": V("nombre"),
     "Teléfono": V("telefono"),
-    "Localidad": V("localidad")
+    "Localidad": V("localidad"),
     "DR (oculista)": V("dr"),
     "Cristal": `${V("cristal")} ${money(V("precio_cristal"))}`,
     "Obra social": `${V("obra_social")} ${money(V("importe_obra_social"))}`,
