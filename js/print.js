@@ -1,6 +1,6 @@
-// /js/print.js — v2025-09-09 (RESTORE layout previo + QR fijo JPG)
+// /js/print.js — v2025-09-20 (Total final = ar+cr+otro - negativo, Seña, Saldo)
 (function () {
-  // ===== Tamaños A4 como venías usando =====
+  // ===== Tamaños A4 =====
   const PAGE_W_MM = 210;
   const PAGE_H_MM = 297;
   const LEFT_W_MM = 145;   // panel principal
@@ -14,9 +14,10 @@
   const QR_SRC = new URL('img/qr.png', window.location.href).href;
   const LOGO_SRC = new URL('img/logo.png', window.location.href).href;
 
-
   // ===== Helpers =====
   const $ = (id) => document.getElementById(id);
+
+  // texto de SELECT o INPUT
   const getSelText = (el) => {
     if (!el) return '';
     if (el.tagName === 'SELECT') {
@@ -25,11 +26,25 @@
     }
     return (el.value || '').trim();
   };
-  const money = (v) => {
-    const n = parseFloat(String(v ?? '').replace(/[^\d.,-]/g, '').replace(/\./g, '').replace(',', '.'));
-    const nn = isNaN(n) ? 0 : Math.max(0, n);
-    return '$ ' + nn.toLocaleString('es-AR', { maximumFractionDigits: 0 });
+
+  // convierte "$ 20.000" o "20000" → número
+  const toNumber = (v) => {
+    const n = parseFloat(String(v ?? '')
+      .replace(/[^\d.,-]/g, '')  // deja dígitos, coma, punto y signo
+      .replace(/\./g, '')        // quita miles con punto
+      .replace(',', '.'));       // coma → punto
+    return isNaN(n) ? 0 : n;
   };
+
+  // toma el value del input por id y lo convierte a número
+  const numFrom = (id) => toNumber($(id)?.value);
+
+  // formato dinero $ 12.345
+  const money = (v) => {
+    const n = Math.max(0, Math.round(toNumber(v)));
+    return '$ ' + n.toLocaleString('es-AR', { maximumFractionDigits: 0 });
+  };
+
   function parseDateLike(v) {
     if (!v) return null;
     const s = String(v).trim();
@@ -51,15 +66,39 @@
     return `${dd}/${mm}/${yy}`;
   }
 
-  // ===== Datos del form =====
+  // ===== Datos del form + cálculos del talón =====
   function collectForm() {
+    // datos base
     const numero = getSelText($('numero_trabajo'));
     const retiraD = (() => {
       const d = parseDateLike(getSelText($('fecha_retira')));
       return d ? ddmmyyyy(d) : getSelText($('fecha_retira'));
     })();
 
+    const obraLabel = getSelText($('obra_social'));     // texto del concepto negativo
+    const otroLabel = getSelText($('otro_concepto'));   // texto del "otro"
+
+    // montos crudos desde inputs
+    const pAr   = numFrom('precio_armazon');
+    const pCr   = numFrom('precio_cristal');
+    const pOtro = numFrom('precio_otro');
+    const pNeg  = numFrom('importe_obra_social');
+
+    // seña: primero la oculta (#sena). Si está vacía, usa la visible (#seniaInput)
+    let pSenia = numFrom('sena');
+    if (!pSenia) pSenia = numFrom('seniaInput');
+
+    // TOTAL FINAL del talón: ar + cr + otro - negativo
+    const totalFinal = Math.max(0, pAr + pCr + pOtro - pNeg);
+    // SALDO del talón: totalFinal - seña
+    const saldoFinal = Math.max(0, totalFinal - pSenia);
+
+    // flags para mostrar/ocultar filas
+    const showOtro = pOtro > 0 && otroLabel.trim().length > 0;
+    const showObra = pNeg  > 0 && obraLabel.trim().length > 0;
+
     return {
+      // visibles
       numero,
       fecha: getSelText($('fecha')),
       entrega: getSelText($('entrega-select')),
@@ -68,33 +107,35 @@
       nombre: getSelText($('nombre')),
       tel: getSelText($('telefono')),
       cristal: getSelText($('cristal')),
-      precio_cristal: money(getSelText($('precio_cristal'))),
-      obra_social: getSelText($('obra_social')),
-      desc_obra: money(getSelText($('importe_obra_social'))),
-      od_esf: getSelText($('od_esf')),
-      od_cil: getSelText($('od_cil')),
-      od_eje: getSelText($('od_eje')),
-      oi_esf: getSelText($('oi_esf')),
-      oi_cil: getSelText($('oi_cil')),
-      oi_eje: getSelText($('oi_eje')),
       dr: getSelText($('dr')),
       dnp: getSelText($('dnp')),
       add: getSelText($('add')),
       distancia: getSelText($('distancia_focal')),
       n_armazon: getSelText($('numero_armazon')),
       det_armazon: getSelText($('armazon_detalle')),
-      precio_armazon: money(getSelText($('precio_armazon'))),
-      otro_concepto: getSelText($('otro_concepto')),
-      precio_otro: money(getSelText($('precio_otro'))),
-      total: money(getSelText($('total'))),
-      sena: money(getSelText($('sena'))),
-      saldo: money(getSelText($('saldo'))),
       vendedor: getSelText($('vendedor')),
       forma_pago: getSelText($('forma_pago')),
+
+      // labels y montos ya formateados
+      obraLabel,
+      otroLabel,
+      precio_cristal: money(pCr),
+      precio_armazon: money(pAr),
+      precio_otro: money(pOtro),
+      desc_obra: money(pNeg),
+
+      // totales del talón (formateados)
+      total: money(totalFinal),
+      sena: money(pSenia),
+      saldo: money(saldoFinal),
+
+      // flags para condicionales
+      showOtro,
+      showObra,
     };
   }
 
-  // ===== HTML (igual al layout previo) =====
+  // ===== HTML =====
   function renderTicket(d) {
     const safe = (x) => (x || '').replace(/[<>]/g, s => ({ '<': '&lt;', '>': '&gt;' }[s]));
     const BRAND = '#110747';
@@ -132,8 +173,8 @@
           <table class="tbl">
             <thead><tr><th></th><th>ESF</th><th>CIL</th><th>EJE</th></tr></thead>
             <tbody>
-              <tr><td>OD</td><td>${safe(d.od_esf)}</td><td>${safe(d.od_cil)}</td><td>${safe(d.od_eje)}</td></tr>
-              <tr><td>OI</td><td>${safe(d.oi_esf)}</td><td>${safe(d.oi_cil)}</td><td>${safe(d.oi_eje)}</td></tr>
+              <tr><td>OD</td><td>${safe(getSelText($('od_esf')))}</td><td>${safe(getSelText($('od_cil')))}</td><td>${safe(getSelText($('od_eje')))}</td></tr>
+              <tr><td>OI</td><td>${safe(getSelText($('oi_esf')))}</td><td>${safe(getSelText($('oi_cil')))}</td><td>${safe(getSelText($('oi_eje')))}</td></tr>
             </tbody>
           </table>
         </div>
@@ -149,9 +190,9 @@
       <div class="box">
         <div class="box-t">Productos</div>
         <div class="kv"><div class="k">Cristal</div><div class="v">${safe(d.cristal)} — <strong>${d.precio_cristal}</strong></div></div>
-        <div class="kv"><div class="k">Obra soc.</div><div class="v">${safe(d.obra_social)} — ${d.desc_obra}</div></div>
+        ${d.showObra ? `<div class="kv"><div class="k">${safe(d.obraLabel)}</div><div class="v">− ${d.desc_obra}</div></div>` : ''}
         <div class="kv"><div class="k">Armazón</div><div class="v">#${safe(d.n_armazon)} • ${safe(d.det_armazon)} — <strong>${d.precio_armazon}</strong></div></div>
-        <div class="kv"><div class="k">Otro</div><div class="v">${safe(d.otro_concepto)} — ${d.precio_otro}</div></div>
+        ${d.showOtro ? `<div class="kv"><div class="k">${safe(d.otroLabel)}</div><div class="v">${d.precio_otro}</div></div>` : ''}
       </div>
 
       <div class="totals">
@@ -165,25 +206,24 @@
 
     <div class="cut"></div>
 
-   <div class="right">
-  <div class="r-head">
-    <img class="r-logo-img" src="${LOGO_SRC}?v=1" alt="Óptica Cristal">
-    <div class="r-text">
-      <div class="r-line">Av. Ricardo Balbín 1125</div>
-      <div class="r-line">San Miguel</div>
-      <div class="r-line">Cel/Whatsapp 11-5668-9919</div>
-      
-    </div>
-  </div>
+    <div class="right">
+      <div class="r-head">
+        <img class="r-logo-img" src="${LOGO_SRC}?v=1" alt="Óptica Cristal">
+        <div class="r-text">
+          <div class="r-line">Av. Ricardo Balbín 1125</div>
+          <div class="r-line">San Miguel</div>
+          <div class="r-line">Cel/Whatsapp 11-5668-9919</div>
+        </div>
+      </div>
 
       <div class="r-kv"><div class="rk">Nº</div><div class="rv mono">${safe(d.numero)}</div></div>
-<div class="r-kv"><div class="rk">Cliente</div><div class="rv">${safe(d.nombre)}</div></div>
-<div class="r-kv"><div class="rk">Retira (aprox.)</div><div class="rv">${safe(d.retira)}</div></div>
-<div class="r-kv"><div class="rk">Total</div><div class="rv">${d.total}</div></div>
-<div class="r-kv"><div class="rk">Seña</div><div class="rv">${d.sena}</div></div>
-<div class="r-kv"><div class="rk">Saldo</div><div class="rv">${d.saldo}</div></div>
+      <div class="r-kv"><div class="rk">Cliente</div><div class="rv">${safe(d.nombre)}</div></div>
+      <div class="r-kv"><div class="rk">Retira (aprox.)</div><div class="rv">${safe(d.retira)}</div></div>
+      <div class="r-kv"><div class="rk">Total</div><div class="rv">${d.total}</div></div>
+      <div class="r-kv"><div class="rk">Seña</div><div class="rv">${d.sena}</div></div>
+      <div class="r-kv"><div class="rk">Saldo</div><div class="rv">${d.saldo}</div></div>
 
-      <!-- QR FIJO (JPG) -->
+      <!-- QR -->
       <div class="r-qr">
         <img src="${QR_SRC}?v=2" alt="QR" style="width:34mm;height:34mm;object-fit:contain">
       </div>
@@ -192,7 +232,7 @@
 </div>`;
   }
 
-  // ===== CSS inline (el mismo esquema que usabas) =====
+  // ===== CSS inline =====
   function commonCSS() {
     const BRAND = '#110747';
     return `
@@ -205,9 +245,9 @@
       .canvas { width:${PAGE_W_MM}mm; height:${PAGE_H_MM}mm; padding:8mm 6mm 6mm;
         display:grid; grid-template-columns:${LEFT_W_MM}mm ${GUTTER_MM}mm ${RIGHT_W_MM}mm; }
       .cut { width:${GUTTER_MM}mm; border-left:1px dashed #cfd6e4; }
+
       .hdr{ display:grid; grid-template-columns:1fr ${BAR_W_MM}mm 1fr; column-gap:3mm; align-items:start; margin-bottom:2mm; }
       .brand{ display:flex; gap:2mm; }
-      .dot{ width:3mm; height:3mm; background:${BRAND}; border-radius:50%; margin-top:1mm; }
       .title{ font-weight:800; color:${BRAND}; }
       .sub{ color:#6b7280; font-size:8.5pt; margin-top:.2mm; }
       .barwrap{ width:${BAR_W_MM}mm; height:${BAR_H_MM}mm; display:flex; align-items:center; justify-content:center; }
@@ -231,37 +271,14 @@
       .total-line .big{ font-weight:800; }
       .vendedor{ color:#505a6b; }
 
+      .right .r-head{ display:flex; flex-direction:column; align-items:flex-start; margin-bottom:2mm; }
+      .r-logo-img{ width:35mm; height:auto; object-fit:contain; margin-bottom:1mm; }
+      .r-line{ font-size:10pt; color:#505a6b; line-height:1.3; }
 
-      .right .r-head{
-      display:flex;
-      flex-direction:column;
-      align-items:flex-start;
-      margin-bottom:2mm;
-      }
-      
-      .r-logo-img{
-      width:35mm;
-      height:auto;
-      object-fit:contain;
-      margin-bottom:1mm;
-      }
-      
-      
-      .r-line{
-      font-size:10pt;
-      color:#505a6b;
-      line-height:1.3;
-      }
-
-      
-      .right .r-logo-dot{ width:7mm; height:7mm; background:${BRAND}; border-radius:50%; }
-      .right .r-title{ font-weight:800; color:${BRAND}; line-height:1.1; }
-      .right .r-sub{ color:#6b7280; font-size:8pt; line-height:1.1; margin-top:.2mm; }
-      
       .right .r-kv{ display:grid; grid-template-columns:22mm 1fr; gap:1.2mm; align-items:baseline; margin:.6mm 0; }
       .right .rk{ color:#505a6b; font-size:8.5pt; white-space:nowrap }
       .right .rv{ font-weight:700; }
-      
+
       .right .r-qr{ margin-top:2mm; display:flex; justify-content:center; }
       .right .r-qr img{ width:34mm; height:34mm; object-fit:contain; }
     </style>`;
@@ -281,35 +298,33 @@
 
     const doc = win.document;
     doc.open();
-    doc.write(`<!doctype html><html><head><meta charset="utf-8"><link rel="preload" as="image" href="${QR_SRC}?v=2"><link rel="preload" as="image" href="${LOGO_SRC}?v=1">${css}</head><body>${htmlInner}</body></html>`);
-
-
+    doc.write(`<!doctype html><html><head><meta charset="utf-8">
+      <link rel="preload" as="image" href="${QR_SRC}?v=2">
+      <link rel="preload" as="image" href="${LOGO_SRC}?v=1">
+      ${css}</head><body>${htmlInner}</body></html>`);
     doc.close();
 
-   const render = async () => {
-  try {
-    const svg = doc.getElementById('barcode');
-    if (win.JsBarcode && svg) {
-      win.JsBarcode(svg, String(numero || ''), { format:'CODE128', displayValue:false, margin:0, height:40 });
-    }
-  } catch (_) {}
+    const render = async () => {
+      try {
+        const svg = doc.getElementById('barcode');
+        if (win.JsBarcode && svg) {
+          win.JsBarcode(svg, String(numero || ''), { format:'CODE128', displayValue:false, margin:0, height:40 });
+        }
+      } catch (_) {}
 
-  // esperar a que carguen todas las imágenes (incluye el QR PNG)
-  const imgs = Array.from(doc.images || []);
-  await Promise.all(imgs.map(img => img.complete
-    ? Promise.resolve()
-    : new Promise(res => {
-        img.addEventListener('load',  res, { once:true });
-        img.addEventListener('error', res, { once:true });
-      })
-  ));
+      // esperar imágenes (logo + QR)
+      const imgs = Array.from(doc.images || []);
+      await Promise.all(imgs.map(img => img.complete
+        ? Promise.resolve()
+        : new Promise(res => {
+            img.addEventListener('load',  res, { once:true });
+            img.addEventListener('error', res, { once:true });
+          })
+      ));
 
-  // darle un par de frames al layout y recién ahí imprimir
-  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-  try { win.focus(); win.print(); } catch {}
-};
-
-
+      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+      try { win.focus(); win.print(); } catch {}
+    };
 
     if (win.JsBarcode) render();
     else {
