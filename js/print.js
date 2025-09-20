@@ -1,4 +1,4 @@
-// /js/print.js — v2025-09-20 (Total final = ar+cr+otro - negativo, Seña, Saldo)
+// /js/print.js — v2025-09-20b (Total final = ar+cr+otro - negativo, Seña, Saldo + Localidad)
 (function () {
   // ===== Tamaños A4 =====
   const PAGE_W_MM = 210;
@@ -106,6 +106,7 @@
       dni: getSelText($('dni')),
       nombre: getSelText($('nombre')),
       tel: getSelText($('telefono')),
+      localidad: getSelText($('localidad')),          // ← NUEVO
       cristal: getSelText($('cristal')),
       dr: getSelText($('dr')),
       dnp: getSelText($('dnp')),
@@ -161,10 +162,14 @@
       <div class="grid2">
         <div class="kv"><div class="k">Fecha</div><div class="v">${safe(d.fecha)}</div></div>
         <div class="kv"><div class="k">Entrega</div><div class="v">${safe(d.entrega)}</div></div>
+
         <div class="kv"><div class="k">Retira</div><div class="v">${safe(d.retira)}</div></div>
         <div class="kv"><div class="k">DNI</div><div class="v">${safe(d.dni)}</div></div>
+
+        <div class="kv"><div class="k">Localidad</div><div class="v">${safe(d.localidad)}</div></div>
+        <div class="kv"><div class="k">Teléfono</div><div class="v">${safe(d.tel)}</div></div>
+
         <div class="kv" style="grid-column:1/-1"><div class="k">Cliente</div><div class="v">${safe(d.nombre)}</div></div>
-        <div class="kv" style="grid-column:1/-1"><div class="k">Teléfono</div><div class="v">${safe(d.tel)}</div></div>
       </div>
 
       <div class="grades">
