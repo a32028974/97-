@@ -406,24 +406,30 @@
       view.saldo.textContent    = fmt(saldo);
 
       // Otro concepto (mostrar solo si hay texto y monto > 0)
+      // ====== OTRO CONCEPTO (label en vivo, fila solo si hay $ y texto) ======
       const txtOtro = (fields.otro_concepto?.value || '').trim();
+      // etiqueta en vivo
+      view.otroLabel.textContent = txtOtro || 'Otro concepto';
+      // visibilidad según monto y texto
       if (ot > 0 && txtOtro){
-        view.otroLabel.textContent = txtOtro;
-        view.otro.textContent      = fmt(ot);
+        view.otro.textContent = fmt(ot);
         view.rowOtro.hidden = false;
       } else {
         view.rowOtro.hidden = true;
       }
-
-      // Concepto negativo (mostrar solo si hay texto y monto > 0)
+      
+      // ====== CONCEPTO NEGATIVO (label en vivo, fila solo si hay $ y texto) ======
       const txtNeg = (fields.concepto_negativo?.value || '').trim();
+      // etiqueta en vivo
+      view.obraLabel.textContent = '− ' + (txtNeg || 'Obra social');
+      // visibilidad según monto y texto
       if (os > 0 && txtNeg){
-        view.obraLabel.textContent = '− ' + txtNeg;
-        view.obra.textContent      = '− ' + fmt(os);
+        view.obra.textContent = '− ' + fmt(os);
         view.rowObra.hidden = false;
       } else {
         view.rowObra.hidden = true;
       }
+
 
       // Barra progreso de pago (en base al total)
       const pct = total > 0 ? Math.min(100, Math.max(0, Math.round((se / total) * 100))) : 0;
