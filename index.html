@@ -421,7 +421,7 @@
       // ====== CONCEPTO NEGATIVO (label en vivo, fila solo si hay $ y texto) ======
       const txtNeg = (fields.concepto_negativo?.value || '').trim();
       // etiqueta en vivo
-      view.obraLabel.textContent = '− ' + (txtNeg || 'Obra social');
+      view.obraLabel.textContent = '− ' + (txtNeg || '');
       // visibilidad según monto y texto
       if (os > 0 && txtNeg){
         view.obra.textContent = '− ' + fmt(os);
