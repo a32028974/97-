@@ -134,8 +134,9 @@
             <input id="od_eje" name="od_eje" inputmode="numeric" placeholder="EJE" />
           </div>
           <div>
-            <label for="distancia_focal">Distancia focal</label>
-            <select id="distancia_focal" name="distancia_focal">
+            <label for="distancia_focal">Distancia focal <span class="small muted">(obligatorio)</span></label>
+            <select id="distancia_focal" name="distancia_focal" required>
+              <option value="" selected disabled>Elegí una opción</option>
               <option>Monofocal Lejos</option>
               <option>Monofocal Cerca</option>
               <option>Bifocal</option>
@@ -244,9 +245,7 @@
             <!-- Seña editable (visible) -->
             <div class="row it">
               <span class="lbl">Seña</span>
-              
-                <input id="seniaInput" type="text" inputmode="numeric" value="0" autocomplete="off" />
-              </div>
+              <div class="money"><input id="seniaInput" type="text" inputmode="numeric" value="0" autocomplete="off" /></div>
             </div>
 
             <!-- Concepto negativo (solo si hay texto+monto) -->
@@ -335,7 +334,7 @@
   </div>
 
   <!-- JS -->
-  <script type="module" src="./js/main.js?v=20"></script>
+  <script type="module" src="./js/main.js?v=21"></script>
 
   <!-- Cálculo de totales en vivo (aislado) -->
   <script type="module">
@@ -406,11 +405,8 @@
       view.saldo.textContent    = fmt(saldo);
 
       // Otro concepto (mostrar solo si hay texto y monto > 0)
-      // ====== OTRO CONCEPTO (label en vivo, fila solo si hay $ y texto) ======
       const txtOtro = (fields.otro_concepto?.value || '').trim();
-      // etiqueta en vivo
       view.otroLabel.textContent = txtOtro || 'Otro concepto';
-      // visibilidad según monto y texto
       if (ot > 0 && txtOtro){
         view.otro.textContent = fmt(ot);
         view.rowOtro.hidden = false;
@@ -418,11 +414,9 @@
         view.rowOtro.hidden = true;
       }
       
-      // ====== CONCEPTO NEGATIVO (label en vivo, fila solo si hay $ y texto) ======
+      // Concepto negativo (mostrar solo si hay texto y monto > 0)
       const txtNeg = (fields.concepto_negativo?.value || '').trim();
-      // etiqueta en vivo
       view.obraLabel.textContent = '− ' + (txtNeg || '');
-      // visibilidad según monto y texto
       if (os > 0 && txtNeg){
         view.obra.textContent = '− ' + fmt(os);
         view.rowObra.hidden = false;
@@ -430,8 +424,7 @@
         view.rowObra.hidden = true;
       }
 
-
-      // Barra progreso de pago (en base al total)
+      // Barra progreso de pago
       const pct = total > 0 ? Math.min(100, Math.max(0, Math.round((se / total) * 100))) : 0;
       view.meter.style.width = pct + '%';
 
@@ -440,7 +433,6 @@
       if (fields.saldo) fields.saldo.value = saldo;
     }
 
-    // Normalizadores de dinero
     const moneyInputs = [
       fields.precio_armazon,
       fields.precio_cristal,
@@ -456,16 +448,13 @@
       el.addEventListener('change',() => { if (el === fields.seniaInput) syncSeniaHidden(); updateTotals(); });
     });
 
-    // Texto que afecta etiquetas
     [fields.otro_concepto, fields.concepto_negativo].forEach(el => {
       if (el) ['input','change','blur'].forEach(ev => el.addEventListener(ev, updateTotals));
     });
 
-    // Primera sincronización
     syncSeniaHidden();
     updateTotals();
 
-    // Exponer para otros scripts si lo necesitan
     window.__updateTotals = updateTotals;
   </script>
 
