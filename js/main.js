@@ -1,7 +1,4 @@
-// /js/main.js — v2025-09-20
-// UI + progreso + cámara + búsquedas + totales + graduaciones + impresión + guardado
-
-// ===== Imports =====
+// /js/main.js — v2025-09-30 (DF obligatoria + placeholder)
 import './print.js?v=2025-09-09c';
 import { sanitizePrice, parseMoney } from './utils.js';
 import { obtenerNumeroTrabajoDesdeTelefono } from './numeroTrabajo.js';
@@ -12,12 +9,9 @@ import { guardarTrabajo } from './guardar.js';
 import { initPhotoPack } from './fotoPack.js';
 import { API_URL, withParams, apiGet } from './api.js';
 
-// ===== Helpers DOM =====
 const $ = (id) => document.getElementById(id);
 
-// =========================================================================
-// PROGRESO (overlay)
-// =========================================================================
+// =================== Progreso ===================
 const PROGRESS_STEPS = [
   'Validando datos','Guardando en planilla','Generando PDF','Subiendo fotos',
   'Guardando link del PDF','Enviando por Telegram','Listo'
@@ -28,7 +22,6 @@ function getOverlayHost() {
   if (!host) { host = document.createElement('div'); host.id = 'spinner'; document.body.appendChild(host); }
   host.classList.add('spinner'); host.classList.remove('spinner-screen'); return host;
 }
-
 function createProgressPanel(steps = PROGRESS_STEPS) {
   const host = getOverlayHost();
   if (!host.dataset.prevHTML) host.dataset.prevHTML = host.innerHTML;
@@ -67,9 +60,7 @@ function progressAPI(steps = PROGRESS_STEPS) {
   return { next, mark, autoAdvance, complete, fail, doneAndHide };
 }
 
-// =========================================================================
-// Fechas
-// =========================================================================
+// =================== Fechas ===================
 function parseFechaDDMMYY(str){ if(!str) return new Date(); const [d,m,a]=str.split(/[\/\-]/); const dd=+d||0, mm=+m||1; let yy=+a||0; if ((a||'').length===2) yy = 2000 + yy; return new Date(yy, mm-1, dd); }
 function fmtISO(d){ const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), da=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${da}`; }
 function sumarDias(base, dias){ const d=new Date(base.getTime()); d.setDate(d.getDate() + (parseInt(dias,10)||0)); return d; }
@@ -79,15 +70,11 @@ function recalcularFechaRetiro(){
 }
 window.recalcularFechaRetiro = recalcularFechaRetiro;
 
-// =========================================================================
-// Nº de trabajo desde teléfono
-// =========================================================================
+// =================== Nº de trabajo ===================
 const generarNumeroTrabajoDesdeTelefono = () => { const tel=$('telefono'), out=$('numero_trabajo'); if(!tel||!out) return; out.value = obtenerNumeroTrabajoDesdeTelefono(tel.value); };
 window.generarNumeroTrabajoDesdeTelefono = generarNumeroTrabajoDesdeTelefono;
 
-// =========================================================================
-// Graduaciones (validaciones)
-// =========================================================================
+// =================== Graduaciones ===================
 function clamp(n,min,max){ return Math.min(Math.max(n,min),max); }
 function sanitizeEje(el){ el.value = el.value.replace(/\D/g,'').slice(0,3); }
 function validateEje(el){ if(!el.value) return; let n=parseInt(el.value,10); if(isNaN(n)){ el.value=''; return; } n=clamp(n,0,180); el.value=String(n); }
@@ -118,17 +105,14 @@ function resetGraduaciones(){
   ['od_eje','oi_eje'].forEach(id=>{ const inp=$(id); if(inp) inp.value=''; });
 }
 
-// =========================================================================
-// Dinero / Totales (base del guardado)
-// =========================================================================
+// =================== Totales ===================
 function setupCalculos(){
   const pc=$('precio_cristal'), pa=$('precio_armazon'), po=$('precio_otro');
-  const os=$('importe_obra_social'); // descuento/cobertura
-  const senaHidden=$('sena');        // campo oculto que se guarda
-  const senaVisible=$('seniaInput'); // campo visible editable
+  const os=$('importe_obra_social');
+  const senaHidden=$('sena');
+  const senaVisible=$('seniaInput');
   const tot=$('total'), sal=$('saldo');
 
-  // sincronizar visible -> oculta
   function syncSenia(){ if(!senaVisible||!senaHidden) return; senaHidden.value = senaVisible.value || '0'; }
   function updateTotals(){
     syncSenia();
@@ -151,9 +135,7 @@ function setupCalculos(){
   updateTotals();
 }
 
-// =========================================================================
-// Impresión / Limpieza
-// =========================================================================
+// =================== Impresión / Limpieza ===================
 let __PRINT_LOCK=false;
 function buildPrintArea(){ if(__PRINT_LOCK) return; __PRINT_LOCK=true; try{ if(typeof window.__buildPrintArea==='function'){ window.__buildPrintArea(); } else { console.warn('No existe __buildPrintArea'); } } finally { setTimeout(()=>{ __PRINT_LOCK=false; },1200); } }
 
@@ -165,9 +147,7 @@ function limpiarFormulario(){
   if (typeof window.__updateTotals === 'function') window.__updateTotals();
 }
 
-// =========================================================================
-// Bloquear submit con Enter (solo con botón Guardar)
-// =========================================================================
+// =================== Enter ===================
 function bloquearSubmitConEnter(form){
   if(!form) return;
   form.addEventListener('keydown',(e)=>{
@@ -179,9 +159,7 @@ function bloquearSubmitConEnter(form){
   });
 }
 
-// =========================================================================
-// Búsquedas y edición
-// =========================================================================
+// =================== Búsquedas/edición (historial) ===================
 function __toDateObj(v){ if(v instanceof Date) return v; const s=String(v??'').trim(); if(!s) return null; let m=s.match(/^(\d{4})-(\d{2})-(\d{2})/); if(m) return new Date(+m[1],+m[2]-1,+m[3]); m=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/); if(m){ const dd=+m[1], mm=+m[2], yy=(m[3].length===2?2000+ +m[3]:+m[3]); const d=new Date(yy,mm-1,dd); return isNaN(d)?null:d; } const d=new Date(s); return isNaN(d)?null:d; }
 function __fmtDDMMYY(d){ const dd=String(d.getDate()).padStart(2,'0'); const mm=String(d.getMonth()+1).padStart(2,'0'); const yy=String(d.getFullYear()).slice(-2); return `${dd}/${mm}/${yy}`; }
 function __fmtYYYYMMDD(d){ const mm=String(d.getMonth()+1).padStart(2,'0'); const dd=String(d.getDate()).padStart(2,'0'); return `${d.getFullYear()}-${mm}-${dd}`; }
@@ -194,7 +172,6 @@ function __buildKeyMap(row){ const map={}; for(const [k,v] of Object.entries(row
 function __gv(K,...aliases){ for(const a of aliases){ const v=K[__normKey(a)]; if(v!=null && v!=='') return v; } return undefined; }
 function __getNroFromRowK(K){ const v=__gv(K,'NUMERO_TRABAJO','NUMERO','NRO','N','N_TRABAJO','N__TRABAJO','NRO_TRABAJO','NRO_TRAB'); return String(v ?? '').trim(); }
 
-// API historial
 async function __fetchHistByNro(nro){
   const searchParamSets=[
     { histBuscar:`@${nro}`,limit:200 },{ histBuscar:`${nro}`,limit:200 },
@@ -239,6 +216,21 @@ async function cargarTrabajoAnterior(nro){
   __setVal('forma_pago',__gv(K,'FORMA_DE_PAGO','FORMA_PAGO'));
   __setVal('distancia_focal',__gv(K,'DISTANCIA_FOCAL','DISTANCIA','DISTANCIA_FOC'));
 
+  // Si cargamos un valor de DF y el select está en placeholder, aseguramos setearlo
+  const dfSel = $('distancia_focal');
+  const dfVal = String(__gv(K,'DISTANCIA_FOCAL','DISTANCIA','DISTANCIA_FOC') ?? '').trim();
+  if (dfSel && dfVal) {
+    const opt = [...dfSel.options].find(o => o.value === dfVal || o.textContent.trim() === dfVal);
+    if (opt) dfSel.value = opt.value;
+    // Si no existe, lo agregamos (evita perder el dato al editar)
+    else {
+      const o = document.createElement('option');
+      o.value = dfVal; o.textContent = dfVal;
+      dfSel.appendChild(o);
+      dfSel.value = dfVal;
+    }
+  }
+
   __setSelectGrad('od_esf',__gv(K,'OD_ESF')); __setSelectGrad('od_cil',__gv(K,'OD_CIL')); __setVal('od_eje',__gv(K,'OD_EJE'));
   __setSelectGrad('oi_esf',__gv(K,'OI_ESF')); __setSelectGrad('oi_cil',__gv(K,'OI_CIL')); __setVal('oi_eje',__gv(K,'OI_EJE'));
 
@@ -257,9 +249,24 @@ async function cargarTrabajoAnterior(nro){
 }
 window.cargarTrabajoAnterior = cargarTrabajoAnterior;
 
-// =========================================================================
-// INIT
-// =========================================================================
+// =================== Validación Distancia Focal ===================
+function validarDistanciaFocal(){
+  const sel = $('distancia_focal');
+  if (!sel) return true; // si no existe, no bloquear
+  const ok = sel.value && sel.value.trim() !== '';
+  if (!ok && window.Swal){
+    Swal.fire({
+      icon:'warning',
+      title:'Falta la Distancia focal',
+      text:'Elegí una opción en “Distancia focal”.',
+      timer:2500, showConfirmButton:false, toast:true, position:'top-end'
+    });
+    sel.focus();
+  }
+  return ok;
+}
+
+// =================== INIT ===================
 document.addEventListener('DOMContentLoaded', () => {
   // Cámara + Galería
   initPhotoPack();
@@ -273,7 +280,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Graduaciones
   setupGraduacionesSelects();
 
-  // Totales (incluye sync seña visible->oculta)
+  // Totales
   setupCalculos();
 
   // Teléfono → Nº trabajo
@@ -281,8 +288,9 @@ document.addEventListener('DOMContentLoaded', () => {
   if(tel){ tel.addEventListener('blur',generarNumeroTrabajoDesdeTelefono); tel.addEventListener('change',generarNumeroTrabajoDesdeTelefono); tel.addEventListener('input',()=>{ tel.value=tel.value.replace(/[^0-9 +()-]/g,''); }); }
 
   // DNI → nombre/teléfono
-  const dni=$('dni'), nombre=$('nombre'), telefono=$('telefono'), indi=$('dni-loading');
+  const dni=$('dni'), nombre=$('nombre'), telefono=$('telefono');
   if(dni){
+    const indi=$('dni-loading');
     const doDNI=()=>buscarNombrePorDNI(dni,nombre,telefono,indi);
     dni.addEventListener('blur',doDNI);
     dni.addEventListener('keydown',(e)=>{ if(e.key==='Enter'){ e.preventDefault(); doDNI(); } if(e.key==='Tab'){ window.__dniGoNext=true; } });
@@ -323,6 +331,9 @@ document.addEventListener('DOMContentLoaded', () => {
   if(form){
     form.addEventListener('submit', async (e)=>{
       e.preventDefault();
+      // ✔︎ Primero, DF obligatoria
+      if(!validarDistanciaFocal()) return;
+      // ✔︎ Luego, ejes
       if(!validarEjesRequeridos()) return;
 
       const progress=progressAPI(PROGRESS_STEPS);
